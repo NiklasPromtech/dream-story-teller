@@ -332,7 +332,7 @@ const StoryMode = () => {
     if (!hasStarted && !isConnecting) {
       startConversation();
     }
-    // Connection timeout: if still not connected after 20s, show retry
+    // Connection timeout: if still not connected after 30s, show retry
     const timeout = setTimeout(() => {
       if (!hasStarted && conversation.status !== "connected" && !isStopped && !connectionFailed) {
         setConnectionFailed(true);
@@ -342,7 +342,7 @@ const StoryMode = () => {
           description: "Taking too long to connect. Tap retry to try again.",
         });
       }
-    }, 20000);
+    }, 30000);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);

@@ -99,10 +99,14 @@ const StoryMode = () => {
       setHasStarted(true);
       setConnectionFailed(false);
       saveStory();
-      // Send story context to the agent
+      // Send story context and trigger the agent to start telling the story
       const ageLabel = age || 4;
       const contextMessage = `The child is ${ageLabel} years old. Tell a ${length || "medium"}-length bedtime story about: ${topic || "a magical adventure"}. Use vocabulary and sentence complexity appropriate for age ${ageLabel}.`;
       conversation.sendContextualUpdate(contextMessage);
+      // Trigger the agent to start speaking immediately
+      setTimeout(() => {
+        conversation.sendUserMessage(`Please start telling me a bedtime story about ${topic || "a magical adventure"} right now.`);
+      }, 500);
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
       startSleepTimer(mins);

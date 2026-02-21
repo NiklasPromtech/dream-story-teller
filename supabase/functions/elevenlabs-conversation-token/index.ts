@@ -36,26 +36,37 @@ serve(async (req) => {
             : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
     } The story theme is: ${topic || "a magical adventure"}. Story length: ${length || "medium"}.`;
 
-    // Get signed URL for WebSocket connection
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
-      {
-        method: "GET",
-        headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
-        },
-      }
-    );
+    // Get both signed URL and conversation token for fallback
+    const [signedUrlRes, tokenRes] = await Promise.all([
+      fetch(
+        `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
+        { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
+      ),
+      fetch(
+        `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${ELEVENLABS_AGENT_ID}`,
+        { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
+      ),
+    ]);
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("ElevenLabs signed URL error:", response.status, text);
-      throw new Error(`ElevenLabs API error: ${response.status}`);
+    if (!signedUrlRes.ok && !tokenRes.ok) {
+      const text = await signedUrlRes.text();
+      console.error("ElevenLabs API error:", signedUrlRes.status, text);
+      throw new Error(`ElevenLabs API error: ${signedUrlRes.status}`);
     }
 
-    const { signed_url } = await response.json();
+    const result: Record<string, unknown> = { overrides: { prompt: agePrompt } };
 
-    return new Response(JSON.stringify({ signed_url, overrides: { prompt: agePrompt } }), {
+    if (signedUrlRes.ok) {
+      const { signed_url } = await signedUrlRes.json();
+      result.signed_url = signed_url;
+    }
+
+    if (tokenRes.ok) {
+      const { token } = await tokenRes.json();
+      result.token = token;
+    }
+
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

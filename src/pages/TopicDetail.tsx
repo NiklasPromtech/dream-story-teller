@@ -305,6 +305,7 @@ const TopicDetail = () => {
           handlePlayNext(theme);
         }}
         topicName={story.topic}
+        storyName={story.story_name}
       />
     </div>
   );

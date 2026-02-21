@@ -78,7 +78,7 @@ const StoryMode = () => {
     savedRef.current = true;
     try {
       if (isNew) {
-        await supabase.from("stories").insert({ topic, length });
+        await supabase.from("stories").insert({ topic, length, age: age || 4 });
       } else if (storyId) {
         await supabase
           .from("stories")

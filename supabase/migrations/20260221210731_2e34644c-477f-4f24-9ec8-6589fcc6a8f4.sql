@@ -1,0 +1,1 @@
+ALTER TABLE public.stories ADD COLUMN age integer NOT NULL DEFAULT 4;

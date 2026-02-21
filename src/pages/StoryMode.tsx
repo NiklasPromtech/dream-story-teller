@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion } from "framer-motion";
-import { Moon, Square } from "lucide-react";
+import { Moon, Square, Home, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,6 +21,7 @@ const StoryMode = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [connectionFailed, setConnectionFailed] = useState(false);
+  const [isStopped, setIsStopped] = useState(false);
   const savedRef = useRef(false);
 
   // Save or update story in DB when conversation starts
@@ -107,8 +108,18 @@ const StoryMode = () => {
 
   const stopConversation = useCallback(async () => {
     await conversation.endSession();
+    setIsStopped(true);
+  }, [conversation]);
+
+  const goHome = useCallback(() => {
     navigate("/");
-  }, [conversation, navigate]);
+  }, [navigate]);
+
+  const resumeConversation = useCallback(async () => {
+    setIsStopped(false);
+    savedRef.current = true; // don't re-save
+    await startConversation();
+  }, [startConversation]);
 
   useEffect(() => {
     if (topic && !hasStarted && !isConnecting) {
@@ -154,38 +165,80 @@ const StoryMode = () => {
         transition={{ delay: 1 }}
         className="mt-8 text-sm text-muted-foreground/50"
       >
-        {connectionFailed
-          ? "Something went wrong"
-          : isConnecting
-            ? "Preparing your story…"
-            : isActive
-              ? conversation.isSpeaking
-                ? "Telling your story…"
-                : "Listening…"
-              : "Connecting…"}
+        {isStopped
+          ? "Story paused"
+          : connectionFailed
+            ? "Something went wrong"
+            : isConnecting
+              ? "Preparing your story…"
+              : isActive
+                ? conversation.isSpeaking
+                  ? "Telling your story…"
+                  : "Listening…"
+                : "Connecting…"}
       </motion.p>
 
-      <div className="mt-16 flex gap-4">
-        {connectionFailed && (
+      <div className="mt-16 flex flex-col items-center gap-4">
+        {/* Stopped state: resume + go home */}
+        {isStopped && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex gap-3"
+          >
+            <button
+              onClick={resumeConversation}
+              className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20"
+            >
+              <Play className="h-4 w-4" />
+              Resume
+            </button>
+            <button
+              onClick={goHome}
+              className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+            >
+              <Home className="h-4 w-4" />
+              New Story
+            </button>
+          </motion.div>
+        )}
+
+        {/* Retry on failure */}
+        {connectionFailed && !isStopped && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex gap-3"
+          >
+            <button
+              onClick={startConversation}
+              className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20"
+            >
+              Retry
+            </button>
+            <button
+              onClick={goHome}
+              className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+            >
+              <Home className="h-4 w-4" />
+              Back
+            </button>
+          </motion.div>
+        )}
+
+        {/* Stop button while active/connecting */}
+        {!isStopped && !connectionFailed && (
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            onClick={startConversation}
-            className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20"
+            transition={{ delay: 2 }}
+            onClick={stopConversation}
+            className="flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
+            aria-label="Stop story"
           >
-            Retry
+            <Square className="h-5 w-5 fill-current" />
           </motion.button>
         )}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: connectionFailed ? 0 : 2 }}
-          onClick={stopConversation}
-          className="flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
-          aria-label="Stop story"
-        >
-          <Square className="h-5 w-5 fill-current" />
-        </motion.button>
       </div>
     </div>
   );

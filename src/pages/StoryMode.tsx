@@ -140,39 +140,13 @@ const StoryMode = () => {
         "elevenlabs-conversation-token",
         { body: { topic, length, age: age || 4 } }
       );
-      if (error || (!data?.signed_url && !data?.token)) {
-        throw new Error(error?.message || "No connection credentials received");
+      if (error || !data?.signed_url) {
+        throw new Error(error?.message || "No signed URL received");
       }
-
-      const overridesConfig = data.overrides ? {
-        overrides: {
-          agent: {
-            prompt: { prompt: data.overrides.prompt },
-          },
-        },
-      } : {};
-
-      // Try signed URL (WebSocket) first, fall back to token
-      if (data.signed_url) {
-        console.log("Connecting via WebSocket signed URL...");
-        try {
-          await conversation.startSession({
-            signedUrl: data.signed_url,
-            ...overridesConfig,
-          });
-          return; // Success
-        } catch (wsErr) {
-          console.warn("WebSocket failed, trying token fallback:", wsErr);
-        }
-      }
-
-      if (data.token) {
-        console.log("Connecting via conversation token...");
-        await conversation.startSession({
-          conversationToken: data.token,
-          ...overridesConfig,
-        });
-      }
+      console.log("Connecting via WebSocket...");
+      await conversation.startSession({
+        signedUrl: data.signed_url,
+      });
     } catch (err: any) {
       console.error("Failed to start:", err);
       setConnectionFailed(true);

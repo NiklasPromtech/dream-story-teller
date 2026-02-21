@@ -131,7 +131,7 @@ const TopicDetail = () => {
                 <p className="text-sm text-muted-foreground mt-1 italic">{story.story_description}</p>
               )}
               <p className="text-sm text-muted-foreground mt-1">
-                {story.episode_count} episode{story.episode_count !== 1 ? "s" : ""} · Age {story.age}+
+                {episodes.length} episode{episodes.length !== 1 ? "s" : ""} · Age {story.age}+
               </p>
             </div>
           </div>

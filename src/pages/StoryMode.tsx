@@ -2,15 +2,10 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Square, Home, Play, Timer, Send, MessageSquare } from "lucide-react";
+import { Moon, Square, Home, Play, Send, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const LENGTH_MINUTES: Record<string, number> = {
-  short: 3,
-  medium: 7,
-  long: 15,
-};
 
 const StoryMode = () => {
   const location = useLocation();
@@ -32,22 +27,18 @@ const StoryMode = () => {
   const [connectionFailed, setConnectionFailed] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
   const [fadeReady, setFadeReady] = useState(false);
-  const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [secondsSinceConnect, setSecondsSinceConnect] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [currentStoryId, setCurrentStoryId] = useState<string | undefined>(storyId);
   const savedRef = useRef(false);
   const hasStartedRef = useRef(false);
-  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
-  const wrapUpSentRef = useRef(false);
   const transcriptRef = useRef<string[]>([]);
   const summarySentRef = useRef(false);
   const currentStoryIdRef = useRef<string | undefined>(storyId);
   const isStoppedRef = useRef(false);
-  const sleepRemainingRef = useRef<number>(0);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -55,59 +46,13 @@ const StoryMode = () => {
     return () => clearTimeout(t);
   }, []);
 
-  // Sleep timer
-  const startSleepTimer = useCallback((minutes: number) => {
-    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-    sleepRemainingRef.current = minutes * 60;
-    setSleepRemaining(sleepRemainingRef.current);
-    sleepTimerRef.current = setInterval(() => {
-      sleepRemainingRef.current -= 1;
-      setSleepRemaining(sleepRemainingRef.current);
-      if (sleepRemainingRef.current <= 0) {
-        if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-        sleepTimerRef.current = null;
-        setSleepRemaining(null);
-      }
-    }, 1000);
-  }, []);
-
-  // Wrap-up nudge and auto-stop
-  useEffect(() => {
-    if (sleepRemaining === 0 && !isStoppedRef.current) {
-      isStoppedRef.current = true;
-      setIsStopped(true);
-      conversation.endSession();
-      toast({ title: "Goodnight 🌙", description: "The story has ended. Sweet dreams!" });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sleepRemaining]);
-
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
-      if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
     };
   }, []);
 
-  const extendStory = useCallback((minutes: number) => {
-    const addSeconds = minutes * 60;
-    sleepRemainingRef.current += addSeconds;
-    setSleepRemaining(sleepRemainingRef.current);
-    // Restart the interval if it was already cleared (timer hit 0)
-    if (!sleepTimerRef.current) {
-      sleepTimerRef.current = setInterval(() => {
-        sleepRemainingRef.current -= 1;
-        setSleepRemaining(sleepRemainingRef.current);
-        if (sleepRemainingRef.current <= 0) {
-          if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-          sleepTimerRef.current = null;
-          setSleepRemaining(null);
-        }
-      }, 1000);
-    }
-    toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
-  }, [toast]);
 
 
   // Save or update story in DB when conversation starts
@@ -166,7 +111,7 @@ const StoryMode = () => {
   }, [previousSummary, episodeCount, isNew]);
 
   const ageLabel = age || 4;
-  const durationMinutes = LENGTH_MINUTES[length] || 7;
+  const durationMinutes = length === "short" ? 3 : length === "long" ? 15 : 7;
   const storyPrompt = `You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
     ageLabel <= 3
       ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
@@ -192,12 +137,8 @@ const StoryMode = () => {
       hasStartedRef.current = true;
       setConnectionFailed(false);
       saveStory();
-      wrapUpSentRef.current = false;
       summarySentRef.current = false;
       transcriptRef.current = [];
-      // Auto-start sleep timer based on story length
-      const mins = LENGTH_MINUTES[length] || 7;
-      startSleepTimer(mins);
       // Track time since connect for contextual buttons
       setSecondsSinceConnect(0);
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
@@ -208,8 +149,8 @@ const StoryMode = () => {
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
       saveSummary();
-      // If the user didn't stop and the timer is still running, auto-retry
-      if (!isStoppedRef.current && hasStartedRef.current && sleepRemainingRef.current > 0) {
+      // If the user didn't stop, auto-retry
+      if (!isStoppedRef.current && hasStartedRef.current) {
         console.log("Unexpected disconnect, auto-retrying in 2s...");
         toast({
           title: "Reconnecting…",
@@ -249,9 +190,9 @@ const StoryMode = () => {
   }, [conversation]);
 
   const extendStoryVoice = useCallback((minutes: number) => {
-    extendStory(minutes);
     conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
-  }, [conversation, extendStory]);
+    toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
+  }, [conversation, toast]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
@@ -316,9 +257,6 @@ const StoryMode = () => {
     setIsStopped(true);
     saveSummary();
     await conversation.endSession();
-    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-    sleepTimerRef.current = null;
-    setSleepRemaining(null);
   }, [conversation, saveSummary]);
 
   const goHome = useCallback(() => {
@@ -355,11 +293,6 @@ const StoryMode = () => {
 
   const isActive = conversation.status === "connected";
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
 
   return (
     <>
@@ -377,20 +310,6 @@ const StoryMode = () => {
       </AnimatePresence>
 
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-        {/* Sleep timer display */}
-        <AnimatePresence>
-          {sleepRemaining !== null && sleepRemaining > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-6 right-6 flex items-center gap-2 text-xs text-muted-foreground/40"
-            >
-              <Timer className="h-3 w-3" />
-              {formatTime(sleepRemaining)}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Moon glow */}
         <motion.div

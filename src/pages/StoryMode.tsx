@@ -80,7 +80,6 @@ const StoryMode = () => {
         await supabase
           .from("stories")
           .update({
-            episode_count: (episodeCount || 1) + 1,
             last_played_at: new Date().toISOString(),
           })
           .eq("id", storyId);
@@ -197,12 +196,7 @@ const StoryMode = () => {
 
   const triggerStartStory = useCallback(() => {
     conversation.sendUserMessage(`Please start telling the story now.`);
-  }, [conversation]);
-
-  const extendStoryVoice = useCallback((minutes: number) => {
-    conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
-    toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
-  }, [conversation, toast]);
+   }, [conversation]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
@@ -461,19 +455,6 @@ const StoryMode = () => {
                   <Play className="h-3 w-3" />
                   Start Story
                 </button>
-              )}
-              {secondsSinceConnect !== null && secondsSinceConnect > 10 && (
-                <>
-                  {[3, 6, 9].map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => extendStoryVoice(m)}
-                      className="flex h-10 items-center gap-1 rounded-full border border-border/50 bg-card/50 px-4 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
-                    >
-                      +{m} min
-                    </button>
-                  ))}
-                </>
               )}
             </motion.div>
           )}

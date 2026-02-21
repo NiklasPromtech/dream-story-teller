@@ -45,6 +45,7 @@ const StoryMode = () => {
   const summarySentRef = useRef(false);
   const currentStoryIdRef = useRef<string | undefined>(storyId);
   const isStoppedRef = useRef(false);
+  const sleepRemainingRef = useRef<number>(0);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -55,12 +56,12 @@ const StoryMode = () => {
   // Sleep timer
   const startSleepTimer = useCallback((minutes: number) => {
     if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-    let remaining = minutes * 60;
-    setSleepRemaining(remaining);
+    sleepRemainingRef.current = minutes * 60;
+    setSleepRemaining(sleepRemainingRef.current);
     sleepTimerRef.current = setInterval(() => {
-      remaining -= 1;
-      setSleepRemaining(remaining);
-      if (remaining <= 0) {
+      sleepRemainingRef.current -= 1;
+      setSleepRemaining(sleepRemainingRef.current);
+      if (sleepRemainingRef.current <= 0) {
         if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
         sleepTimerRef.current = null;
         setSleepRemaining(null);
@@ -92,7 +93,21 @@ const StoryMode = () => {
   }, []);
 
   const extendStory = useCallback((minutes: number) => {
-    setSleepRemaining((prev) => (prev !== null ? prev + minutes * 60 : minutes * 60));
+    const addSeconds = minutes * 60;
+    sleepRemainingRef.current += addSeconds;
+    setSleepRemaining(sleepRemainingRef.current);
+    // Restart the interval if it was already cleared (timer hit 0)
+    if (!sleepTimerRef.current) {
+      sleepTimerRef.current = setInterval(() => {
+        sleepRemainingRef.current -= 1;
+        setSleepRemaining(sleepRemainingRef.current);
+        if (sleepRemainingRef.current <= 0) {
+          if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+          sleepTimerRef.current = null;
+          setSleepRemaining(null);
+        }
+      }, 1000);
+    }
     toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
   }, [toast]);
 

@@ -121,7 +121,7 @@ Focus on:
       : `Episode ${episodeNumber || 1} - ${parsed.session_name}:\n${parsed.summary}`;
 
     // Update the parent story with cumulative summary (and name/description for first episode)
-    const storyUpdate: Record<string, string> = { story_summary: cumulativeSummary };
+    const storyUpdate: Record<string, unknown> = { story_summary: cumulativeSummary };
     if (!previousSummary && parsed.story_name) {
       storyUpdate.story_name = parsed.story_name;
     }
@@ -136,6 +136,16 @@ Focus on:
     if (updateError) {
       console.error("Failed to update story summary:", updateError);
       throw new Error("Failed to update story summary");
+    }
+
+    // Increment episode_count only after successful save
+    const { error: countError } = await supabaseAdmin
+      .from("stories")
+      .update({ episode_count: episodeNumber || 1 })
+      .eq("id", storyId);
+
+    if (countError) {
+      console.error("Failed to update episode count:", countError);
     }
 
     return new Response(JSON.stringify({ 

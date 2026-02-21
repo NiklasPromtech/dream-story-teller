@@ -2,9 +2,10 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Square, Home, Play, Send, MessageSquare } from "lucide-react";
+import { Moon, Square, Home, Play, Send, MessageSquare, BookOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 const StoryMode = () => {
@@ -31,6 +32,9 @@ const StoryMode = () => {
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [currentStoryId, setCurrentStoryId] = useState<string | undefined>(storyId);
+  const [liveTranscript, setLiveTranscript] = useState<string[]>([]);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
   const savedRef = useRef(false);
   const hasStartedRef = useRef(false);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -53,6 +57,12 @@ const StoryMode = () => {
     };
   }, []);
 
+  // Auto-scroll transcript to bottom
+  useEffect(() => {
+    if (showTranscript) {
+      transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [liveTranscript, showTranscript]);
 
 
   // Save or update story in DB when conversation starts
@@ -139,6 +149,7 @@ const StoryMode = () => {
       saveStory();
       summarySentRef.current = false;
       transcriptRef.current = [];
+      setLiveTranscript([]);
       // Track time since connect for contextual buttons
       setSecondsSinceConnect(0);
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
@@ -174,13 +185,12 @@ const StoryMode = () => {
       });
     },
     onMessage: (message: any) => {
-      console.log("EL message type:", message.type);
       if (message.type === "agent_response") {
-        transcriptRef.current.push(`Storyteller: ${message.agent_response_event?.agent_response || ""}`);
+        const text = message.agent_response_event?.agent_response || "";
+        transcriptRef.current.push(`Storyteller: ${text}`);
+        setLiveTranscript((prev) => [...prev, text]);
       } else if (message.type === "user_transcript") {
         transcriptRef.current.push(`Child: ${message.user_transcription_event?.user_transcript || ""}`);
-      } else if (message.type === "audio") {
-        // Audio events are expected, ignore for transcript
       }
     },
   });
@@ -359,6 +369,34 @@ const StoryMode = () => {
                   : "Connecting…"}
         </motion.p>
 
+        {/* Live transcript */}
+        <AnimatePresence>
+          {showTranscript && liveTranscript.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-6 w-full max-w-md"
+            >
+              <ScrollArea className="h-40 rounded-xl border border-border/30 bg-card/30 px-4 py-3">
+                <div className="space-y-2">
+                  {liveTranscript.map((line, i) => (
+                    <motion.p
+                      key={i}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-sm leading-relaxed text-muted-foreground/70"
+                    >
+                      {line}
+                    </motion.p>
+                  ))}
+                  <div ref={transcriptEndRef} />
+                </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Controls */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -483,6 +521,19 @@ const StoryMode = () => {
                   aria-label="Toggle text input"
                 >
                   <MessageSquare className="h-5 w-5" />
+                </button>
+              )}
+              {isActive && (
+                <button
+                  onClick={() => setShowTranscript((p) => !p)}
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all ${
+                    showTranscript
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border/50 bg-card/50 text-muted-foreground/50 hover:border-primary/30 hover:text-muted-foreground"
+                  }`}
+                  aria-label="Toggle transcript"
+                >
+                  <BookOpen className="h-5 w-5" />
                 </button>
               )}
               <button

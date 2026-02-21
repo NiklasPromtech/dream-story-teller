@@ -210,7 +210,8 @@ const StoryMode = () => {
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
       saveSummary();
-      if (!isStoppedRef.current && hasStarted) {
+      // Only show error if the user didn't intentionally stop and the timer has run out
+      if (!isStoppedRef.current && hasStarted && sleepRemainingRef.current > 0) {
         setConnectionFailed(true);
         toast({
           variant: "destructive",
@@ -284,9 +285,6 @@ const StoryMode = () => {
             prompt: {
               prompt: storyPrompt,
             },
-            firstMessage: previousSummary
-              ? `Welcome back! Let me continue our story about ${topic || "a magical adventure"} from where we left off...`
-              : `Okay, let me tell you a wonderful bedtime story about ${topic || "a magical adventure"}...`,
           },
         },
       });

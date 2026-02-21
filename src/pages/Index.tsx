@@ -31,6 +31,7 @@ type Story = {
   id: string;
   topic: string;
   length: string;
+  age: number;
   episode_count: number;
   last_played_at: string;
 };
@@ -118,7 +119,7 @@ const Index = () => {
                   <div className="flex-1 min-w-0">
                     <p className="truncate">{story.topic}</p>
                     <p className="text-xs text-muted-foreground">
-                      Episode {story.episode_count} · {story.length}
+                      Episode {story.episode_count} · {story.length} · age {story.age}+
                     </p>
                   </div>
                 </button>

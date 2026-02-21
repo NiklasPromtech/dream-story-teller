@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       stories: {
         Row: {
+          age: number
           created_at: string
           episode_count: number
           id: string
@@ -24,6 +25,7 @@ export type Database = {
           topic: string
         }
         Insert: {
+          age?: number
           created_at?: string
           episode_count?: number
           id?: string
@@ -32,6 +34,7 @@ export type Database = {
           topic: string
         }
         Update: {
+          age?: number
           created_at?: string
           episode_count?: number
           id?: string

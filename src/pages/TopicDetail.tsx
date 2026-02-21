@@ -5,6 +5,7 @@ import { ArrowLeft, Play, Users, BookOpen, ChevronDown, ChevronUp } from "lucide
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import EpisodePromptDialog from "@/components/EpisodePromptDialog";
 
 type Episode = {
   id: string;
@@ -37,6 +38,7 @@ const TopicDetail = () => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<AggregatedCharacter | null>(null);
   const [expandedEpisode, setExpandedEpisode] = useState<string | null>(null);
+  const [showEpisodePrompt, setShowEpisodePrompt] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -78,7 +80,7 @@ const TopicDetail = () => {
     return Array.from(map.values()).sort((a, b) => b.episodes.length - a.episodes.length);
   })();
 
-  const handlePlayNext = () => {
+  const handlePlayNext = (episodeTheme?: string) => {
     if (!story) return;
     navigate("/story", {
       state: {
@@ -89,6 +91,7 @@ const TopicDetail = () => {
         episodeCount: story.episode_count,
         isNew: false,
         previousSummary: story.story_summary || "",
+        episodeTheme,
       },
     });
   };
@@ -237,7 +240,7 @@ const TopicDetail = () => {
 
         {/* Play Next Episode */}
         <Button
-          onClick={handlePlayNext}
+          onClick={() => setShowEpisodePrompt(true)}
           size="lg"
           className="w-full rounded-xl bg-primary text-primary-foreground text-lg py-6 hover:bg-primary/90 transition-all"
         >
@@ -245,6 +248,16 @@ const TopicDetail = () => {
           Play Next Episode
         </Button>
       </motion.div>
+
+      <EpisodePromptDialog
+        open={showEpisodePrompt}
+        onOpenChange={setShowEpisodePrompt}
+        onStart={(theme) => {
+          setShowEpisodePrompt(false);
+          handlePlayNext(theme);
+        }}
+        topicName={story.topic}
+      />
     </div>
   );
 };

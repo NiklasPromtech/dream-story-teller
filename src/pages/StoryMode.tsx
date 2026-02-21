@@ -93,27 +93,29 @@ const StoryMode = () => {
     }
   }, [isNew, storyId, topic, length, episodeCount]);
 
+  const ageLabel = age || 4;
+  const storyPrompt = `You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
+    ageLabel <= 3
+      ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
+      : ageLabel <= 5
+        ? "Use short sentences, familiar words, and playful language. Avoid any scary or complex concepts."
+        : ageLabel <= 8
+          ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
+          : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
+  } Tell a ${length || "medium"}-length bedtime story about: ${topic || "a magical adventure"}. Start telling the story immediately without asking questions first.`;
+
   const conversation = useConversation({
     onConnect: () => {
       console.log("Connected to storyteller");
       setHasStarted(true);
       setConnectionFailed(false);
       saveStory();
-      // Send story context and trigger the agent to start telling the story
-      const ageLabel = age || 4;
-      const contextMessage = `The child is ${ageLabel} years old. Tell a ${length || "medium"}-length bedtime story about: ${topic || "a magical adventure"}. Use vocabulary and sentence complexity appropriate for age ${ageLabel}.`;
-      conversation.sendContextualUpdate(contextMessage);
-      // Trigger the agent to start speaking immediately
-      setTimeout(() => {
-        conversation.sendUserMessage(`Please start telling me a bedtime story about ${topic || "a magical adventure"} right now.`);
-      }, 500);
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
       startSleepTimer(mins);
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
-      // If we haven't explicitly stopped, treat as unexpected disconnect
       if (!isStopped && hasStarted) {
         setConnectionFailed(true);
         toast({
@@ -154,6 +156,14 @@ const StoryMode = () => {
       console.log("Connecting via WebSocket...");
       await conversation.startSession({
         signedUrl: data.signed_url,
+        overrides: {
+          agent: {
+            prompt: {
+              prompt: storyPrompt,
+            },
+            firstMessage: `Okay, let me tell you a wonderful bedtime story about ${topic || "a magical adventure"}...`,
+          },
+        },
       });
     } catch (err: any) {
       console.error("Failed to start:", err);

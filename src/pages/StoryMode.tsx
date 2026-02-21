@@ -38,6 +38,7 @@ const StoryMode = () => {
   const [showTextInput, setShowTextInput] = useState(false);
   const [currentStoryId, setCurrentStoryId] = useState<string | undefined>(storyId);
   const savedRef = useRef(false);
+  const hasStartedRef = useRef(false);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
@@ -192,6 +193,7 @@ const StoryMode = () => {
     onConnect: () => {
       console.log("Connected to storyteller");
       setHasStarted(true);
+      hasStartedRef.current = true;
       setConnectionFailed(false);
       saveStory();
       wrapUpSentRef.current = false;
@@ -334,7 +336,7 @@ const StoryMode = () => {
     }
     // Connection timeout: if still not connected after 30s, show retry
     const timeout = setTimeout(() => {
-      if (!hasStarted && conversation.status !== "connected" && !isStopped && !connectionFailed) {
+      if (!hasStartedRef.current && !isStoppedRef.current) {
         setConnectionFailed(true);
         toast({
           variant: "destructive",

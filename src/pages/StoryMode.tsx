@@ -452,21 +452,26 @@ const StoryMode = () => {
           className="mt-16 flex flex-col items-center gap-4"
         >
           {isStopped && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-              <button
-                onClick={resumeConversation}
-                className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20"
-              >
-                <Play className="h-4 w-4" />
-                Resume
-              </button>
-              <button
-                onClick={goHome}
-                className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
-              >
-                <Home className="h-4 w-4" />
-                New Story
-              </button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4">
+              <p className="text-xs text-muted-foreground/50 max-w-[250px] text-center">
+                Resuming will start a new connection — the story may pick up from a slightly different point
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={resumeConversation}
+                  className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20 active:scale-95"
+                >
+                  <Play className="h-4 w-4" />
+                  Resume
+                </button>
+                <button
+                  onClick={goHome}
+                  className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95"
+                >
+                  <Home className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
             </motion.div>
           )}
 

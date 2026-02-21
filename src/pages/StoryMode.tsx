@@ -16,7 +16,7 @@ const StoryMode = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { topic, length, age, storyId, episodeCount, isNew } =
+  const { topic, length, age, storyId, episodeCount, isNew, previousSummary } =
     (location.state as {
       topic: string;
       length: string;
@@ -24,6 +24,7 @@ const StoryMode = () => {
       storyId?: string;
       episodeCount?: number;
       isNew: boolean;
+      previousSummary?: string;
     }) || {};
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -34,11 +35,14 @@ const StoryMode = () => {
   const [secondsSinceConnect, setSecondsSinceConnect] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
+  const [currentStoryId, setCurrentStoryId] = useState<string | undefined>(storyId);
   const savedRef = useRef(false);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const wrapUpSentRef = useRef(false);
+  const transcriptRef = useRef<string[]>([]);
+  const summarySentRef = useRef(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -95,7 +99,8 @@ const StoryMode = () => {
     savedRef.current = true;
     try {
       if (isNew) {
-        await supabase.from("stories").insert({ topic, length, age: age || 4 });
+        const { data } = await supabase.from("stories").insert({ topic, length, age: age || 4 }).select("id").single();
+        if (data) setCurrentStoryId(data.id);
       } else if (storyId) {
         await supabase
           .from("stories")
@@ -108,7 +113,24 @@ const StoryMode = () => {
     } catch (err) {
       console.error("Failed to save story:", err);
     }
-  }, [isNew, storyId, topic, length, episodeCount]);
+  }, [isNew, storyId, topic, length, episodeCount, age]);
+
+  // Save summary when story ends
+  const saveSummary = useCallback(async () => {
+    if (summarySentRef.current) return;
+    const sid = currentStoryId;
+    const transcript = transcriptRef.current.join("\n");
+    if (!sid || !transcript) return;
+    summarySentRef.current = true;
+    try {
+      await supabase.functions.invoke("summarize-story", {
+        body: { storyId: sid, transcript, previousSummary: previousSummary || "" },
+      });
+      console.log("Story summary saved");
+    } catch (err) {
+      console.error("Failed to save summary:", err);
+    }
+  }, [currentStoryId, previousSummary]);
 
   const ageLabel = age || 4;
   const durationMinutes = LENGTH_MINUTES[length] || 7;
@@ -120,7 +142,11 @@ const StoryMode = () => {
         : ageLabel <= 8
           ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
           : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
-  } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Start telling the story immediately.`;
+  } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Start telling the story immediately.${
+    previousSummary
+      ? `\n\nIMPORTANT CONTINUITY: This is a continuing story. Here is what happened in previous episodes — use these characters, relationships, and world details to continue the story naturally:\n${previousSummary}`
+      : ""
+  }`;
 
   const conversation = useConversation({
     onConnect: () => {
@@ -129,6 +155,8 @@ const StoryMode = () => {
       setConnectionFailed(false);
       saveStory();
       wrapUpSentRef.current = false;
+      summarySentRef.current = false;
+      transcriptRef.current = [];
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
       startSleepTimer(mins);
@@ -141,6 +169,7 @@ const StoryMode = () => {
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
+      saveSummary();
       if (!isStopped && hasStarted) {
         setConnectionFailed(true);
         toast({
@@ -158,6 +187,13 @@ const StoryMode = () => {
         title: "Connection Error",
         description: "Could not connect to the storyteller. Please try again.",
       });
+    },
+    onMessage: (message: any) => {
+      if (message.type === "agent_response") {
+        transcriptRef.current.push(`Storyteller: ${message.agent_response_event?.agent_response || ""}`);
+      } else if (message.type === "user_transcript") {
+        transcriptRef.current.push(`Child: ${message.user_transcription_event?.user_transcript || ""}`);
+      }
     },
   });
 
@@ -208,7 +244,9 @@ const StoryMode = () => {
             prompt: {
               prompt: storyPrompt,
             },
-            firstMessage: `Okay, let me tell you a wonderful bedtime story about ${topic || "a magical adventure"}...`,
+            firstMessage: previousSummary
+              ? `Welcome back! Let me continue our story about ${topic || "a magical adventure"} from where we left off...`
+              : `Okay, let me tell you a wonderful bedtime story about ${topic || "a magical adventure"}...`,
           },
         },
       });
@@ -230,12 +268,13 @@ const StoryMode = () => {
   }, [conversation, topic, length, isConnecting, toast]);
 
   const stopConversation = useCallback(async () => {
+    saveSummary();
     await conversation.endSession();
     if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
     sleepTimerRef.current = null;
     setSleepRemaining(null);
     setIsStopped(true);
-  }, [conversation]);
+  }, [conversation, saveSummary]);
 
   const goHome = useCallback(() => {
     navigate("/");

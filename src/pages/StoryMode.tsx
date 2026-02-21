@@ -16,10 +16,11 @@ const StoryMode = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { topic, length, storyId, episodeCount, isNew } =
+  const { topic, length, age, storyId, episodeCount, isNew } =
     (location.state as {
       topic: string;
       length: string;
+      age?: number;
       storyId?: string;
       episodeCount?: number;
       isNew: boolean;
@@ -126,7 +127,7 @@ const StoryMode = () => {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const { data, error } = await supabase.functions.invoke(
         "elevenlabs-conversation-token",
-        { body: { topic, length } }
+        { body: { topic, length, age: age || 4 } }
       );
       if (error || !data?.token) {
         throw new Error(error?.message || "No token received");
@@ -134,6 +135,13 @@ const StoryMode = () => {
       await conversation.startSession({
         conversationToken: data.token,
         connectionType: "webrtc",
+        ...(data.overrides ? {
+          overrides: {
+            agent: {
+              prompt: { prompt: data.overrides.prompt },
+            },
+          },
+        } : {}),
       });
     } catch (err: any) {
       console.error("Failed to start:", err);

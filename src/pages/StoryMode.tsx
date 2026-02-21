@@ -198,6 +198,18 @@ const StoryMode = () => {
     conversation.sendUserMessage(`Please start telling the story now.`);
    }, [conversation]);
 
+  const extendStoryVoice = useCallback((minutes: number) => {
+    conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
+    toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
+  }, [conversation, toast]);
+
+  const sayGoodnight = useCallback(() => {
+    conversation.sendUserMessage(
+      "It's time to sleep now. Please wrap up the story in the next 30 seconds with a gentle, soothing ending. Say goodnight and end the story."
+    );
+    toast({ title: "Goodnight 🌙", description: "The storyteller is wrapping up…" });
+  }, [conversation, toast]);
+
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
     conversation.sendUserMessage(textInput.trim());
@@ -455,6 +467,26 @@ const StoryMode = () => {
                   <Play className="h-3 w-3" />
                   Start Story
                 </button>
+              )}
+              {secondsSinceConnect !== null && secondsSinceConnect > 10 && (
+                <>
+                  {[3, 6, 9].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => extendStoryVoice(m)}
+                      className="flex h-10 items-center gap-1 rounded-full border border-border/50 bg-card/50 px-4 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+                    >
+                      +{m} min
+                    </button>
+                  ))}
+                  <button
+                    onClick={sayGoodnight}
+                    className="flex h-10 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-5 text-xs text-primary transition-all hover:bg-primary/20"
+                  >
+                    <Moon className="h-3 w-3" />
+                    Goodnight
+                  </button>
+                </>
               )}
             </motion.div>
           )}

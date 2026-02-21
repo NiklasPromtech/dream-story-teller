@@ -73,10 +73,6 @@ const StoryMode = () => {
 
   // Wrap-up nudge and auto-stop
   useEffect(() => {
-    if (sleepRemaining === 60 && !wrapUpSentRef.current && !isStoppedRef.current) {
-      wrapUpSentRef.current = true;
-      conversation.sendUserMessage("You have about 1 minute left. Please start wrapping up the story with a gentle, satisfying ending now.");
-    }
     if (sleepRemaining === 0 && !isStoppedRef.current) {
       isStoppedRef.current = true;
       setIsStopped(true);

@@ -143,48 +143,78 @@ const TopicDetail = () => {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Characters</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {aggregatedCharacters.map((char) => (
-                <button
-                  key={char.name}
-                  onClick={() => setSelectedCharacter(selectedCharacter?.name === char.name ? null : char)}
-                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${
-                    selectedCharacter?.name === char.name
-                      ? "border-primary/50 bg-primary/10 text-primary"
-                      : "border-border bg-card text-secondary-foreground hover:border-primary/30"
-                  }`}
-                >
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-[10px] bg-accent text-accent-foreground">
-                      {char.name.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {char.name}
-                </button>
-              ))}
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                {episodes.length <= 1 ? "Meet the Characters" : "Characters"}
+              </p>
             </div>
 
-            {/* Character detail */}
-            <AnimatePresence>
-              {selectedCharacter && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-                    <p className="text-sm text-foreground">{selectedCharacter.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Appeared in episode{selectedCharacter.episodes.length > 1 ? "s" : ""}{" "}
-                      {selectedCharacter.episodes.join(", ")}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {episodes.length <= 1 ? (
+              /* First episode: full character cards to paint the picture */
+              <div className="space-y-3">
+                {aggregatedCharacters.map((char) => (
+                  <motion.div
+                    key={char.name}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"
+                  >
+                    <Avatar className="h-10 w-10 shrink-0 mt-0.5">
+                      <AvatarFallback className="text-sm bg-primary/20 text-primary font-semibold">
+                        {char.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{char.name}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{char.description}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              /* Multiple episodes: compact chips with expand */
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {aggregatedCharacters.map((char) => (
+                    <button
+                      key={char.name}
+                      onClick={() => setSelectedCharacter(selectedCharacter?.name === char.name ? null : char)}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${
+                        selectedCharacter?.name === char.name
+                          ? "border-primary/50 bg-primary/10 text-primary"
+                          : "border-border bg-card text-secondary-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="text-[10px] bg-accent text-accent-foreground">
+                          {char.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      {char.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Character detail */}
+                <AnimatePresence>
+                  {selectedCharacter && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+                        <p className="text-sm text-foreground">{selectedCharacter.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Appeared in episode{selectedCharacter.episodes.length > 1 ? "s" : ""}{" "}
+                          {selectedCharacter.episodes.join(", ")}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
           </div>
         )}
 

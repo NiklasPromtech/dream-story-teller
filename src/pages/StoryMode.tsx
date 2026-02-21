@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Square, Home, Play, Timer } from "lucide-react";
+import { Moon, Square, Home, Play, Timer, Send, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,9 +32,12 @@ const StoryMode = () => {
   const [fadeReady, setFadeReady] = useState(false);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [secondsSinceConnect, setSecondsSinceConnect] = useState<number | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [showTextInput, setShowTextInput] = useState(false);
   const savedRef = useRef(false);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -159,6 +162,19 @@ const StoryMode = () => {
     extendStory(minutes);
     conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
   }, [conversation, extendStory]);
+
+  const sendTextMessage = useCallback(() => {
+    if (!textInput.trim()) return;
+    conversation.sendUserMessage(textInput.trim());
+    setTextInput("");
+  }, [conversation, textInput]);
+
+  const toggleTextInput = useCallback(() => {
+    setShowTextInput((prev) => {
+      if (!prev) setTimeout(() => textInputRef.current?.focus(), 100);
+      return !prev;
+    });
+  }, []);
 
   useEffect(() => {
     if (!topic) navigate("/");
@@ -408,14 +424,59 @@ const StoryMode = () => {
             </motion.div>
           )}
 
+          {!isStopped && !connectionFailed && isActive && (
+            <AnimatePresence>
+              {showTextInput && (
+                <motion.form
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  onSubmit={(e) => { e.preventDefault(); sendTextMessage(); }}
+                  className="flex w-full max-w-xs items-center gap-2 mb-4"
+                >
+                  <input
+                    ref={textInputRef}
+                    type="text"
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="Type a message…"
+                    className="flex-1 rounded-full border border-border/50 bg-card/50 px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/50 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!textInput.trim()}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary transition-all hover:bg-primary/20 disabled:opacity-30"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          )}
+
           {!isStopped && !connectionFailed && (
-            <button
-              onClick={stopConversation}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
-              aria-label="Stop story"
-            >
-              <Square className="h-5 w-5 fill-current" />
-            </button>
+            <div className="flex items-center gap-3">
+              {isActive && (
+                <button
+                  onClick={toggleTextInput}
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all ${
+                    showTextInput
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border/50 bg-card/50 text-muted-foreground/50 hover:border-primary/30 hover:text-muted-foreground"
+                  }`}
+                  aria-label="Toggle text input"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
+              )}
+              <button
+                onClick={stopConversation}
+                className="flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
+                aria-label="Stop story"
+              >
+                <Square className="h-5 w-5 fill-current" />
+              </button>
+            </div>
           )}
         </motion.div>
       </div>

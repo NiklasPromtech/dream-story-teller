@@ -93,14 +93,15 @@ const StoryMode = () => {
   const saveSummary = useCallback(async () => {
     if (summarySentRef.current) return;
     const sid = currentStoryIdRef.current;
+    // Snapshot transcript immediately so reconnect can't wipe it
     const transcript = transcriptRef.current.join("\n");
-    if (!sid || !transcript) {
+    if (!sid || !transcript.trim()) {
       console.log("saveSummary skipped: no storyId or transcript", { sid, transcriptLen: transcript.length });
       return;
     }
     summarySentRef.current = true;
+    console.log("Calling summarize-story for storyId:", sid, "transcript length:", transcript.length);
     try {
-      console.log("Calling summarize-story for storyId:", sid);
       const { data, error } = await supabase.functions.invoke("summarize-story", {
         body: { 
           storyId: sid, 
@@ -111,13 +112,17 @@ const StoryMode = () => {
       });
       if (error) {
         console.error("Summarize-story error:", error);
+        toast({ variant: "destructive", title: "Save failed", description: "Could not save the episode summary. The transcript was still recorded." });
+        summarySentRef.current = false; // Allow retry
       } else {
         console.log("Story summary saved:", data);
+        toast({ title: "Episode saved ✨", description: "Your story episode has been saved." });
       }
     } catch (err) {
       console.error("Failed to save summary:", err);
+      summarySentRef.current = false; // Allow retry
     }
-  }, [previousSummary, episodeCount, isNew]);
+  }, [previousSummary, episodeCount, isNew, toast]);
 
   const ageLabel = age || 4;
   const durationMinutes = length === "short" ? 3 : length === "long" ? 15 : 7;
@@ -146,9 +151,10 @@ const StoryMode = () => {
       hasStartedRef.current = true;
       setConnectionFailed(false);
       saveStory();
-      summarySentRef.current = false;
-      transcriptRef.current = [];
-      setLiveTranscript([]);
+      // Only reset transcript/summary for a truly new session (not a reconnect)
+      if (!transcriptRef.current.length) {
+        summarySentRef.current = false;
+      }
       // Track time since connect for contextual buttons
       setSecondsSinceConnect(0);
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
@@ -158,9 +164,11 @@ const StoryMode = () => {
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
-      saveSummary();
-      // If the user didn't stop, auto-retry
-      if (!isStoppedRef.current && hasStartedRef.current) {
+      // Only save summary if user intentionally stopped
+      if (isStoppedRef.current) {
+        saveSummary();
+      } else if (hasStartedRef.current) {
+        // Unexpected disconnect — auto-retry without saving yet
         console.log("Unexpected disconnect, auto-retrying in 2s...");
         toast({
           title: "Reconnecting…",
@@ -168,7 +176,7 @@ const StoryMode = () => {
         });
         setTimeout(() => {
           if (!isStoppedRef.current) {
-            savedRef.current = true; // Don't re-create the story
+            savedRef.current = true;
             startConversation();
           }
         }, 2000);
@@ -271,9 +279,9 @@ const StoryMode = () => {
   const stopConversation = useCallback(async () => {
     isStoppedRef.current = true;
     setIsStopped(true);
-    saveSummary();
     await conversation.endSession();
-  }, [conversation, saveSummary]);
+    // saveSummary is called from onDisconnect when isStoppedRef is true
+  }, [conversation]);
 
   const goHome = useCallback(() => {
     navigate("/");

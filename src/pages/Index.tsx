@@ -300,6 +300,7 @@ const Index = () => {
           setPromptStory(null);
         }}
         topicName={promptStory?.topic || ""}
+        storyName={promptStory?.story_name}
       />
 
       {/* Delete Confirmation */}

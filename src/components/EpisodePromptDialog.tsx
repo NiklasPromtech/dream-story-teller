@@ -15,9 +15,10 @@ type EpisodePromptDialogProps = {
   onOpenChange: (open: boolean) => void;
   onStart: (theme?: string) => void;
   topicName: string;
+  storyName?: string | null;
 };
 
-const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName }: EpisodePromptDialogProps) => {
+const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName, storyName }: EpisodePromptDialogProps) => {
   const [theme, setTheme] = useState("");
 
   const handleStart = () => {
@@ -38,7 +39,7 @@ const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName }: Episode
             className="text-lg"
             style={{ fontFamily: "'Crimson Pro', serif" }}
           >
-            Next episode of {topicName}
+            Next episode of {storyName || topicName}
           </DialogTitle>
           <DialogDescription>
             Anything particular you want this episode to be about?

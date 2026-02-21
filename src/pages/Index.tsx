@@ -20,6 +20,13 @@ const LENGTHS = [
   { label: "Long", minutes: "~15 min", value: "long" },
 ];
 
+const AGES = [
+  { label: "2–3", value: 2 },
+  { label: "4–5", value: 4 },
+  { label: "6–8", value: 6 },
+  { label: "9–12", value: 9 },
+];
+
 type Story = {
   id: string;
   topic: string;
@@ -33,6 +40,7 @@ const Index = () => {
   const [selectedTopic, setSelectedTopic] = useState("");
   const [customTopic, setCustomTopic] = useState("");
   const [selectedLength, setSelectedLength] = useState("medium");
+  const [selectedAge, setSelectedAge] = useState(4);
   const [pastStories, setPastStories] = useState<Story[]>([]);
 
   const topic = customTopic || selectedTopic;
@@ -50,7 +58,7 @@ const Index = () => {
 
   const handleStart = () => {
     if (!topic) return;
-    navigate("/story", { state: { topic, length: selectedLength, isNew: true } });
+    navigate("/story", { state: { topic, length: selectedLength, age: selectedAge, isNew: true } });
   };
 
   const handleContinue = (story: Story) => {
@@ -146,6 +154,26 @@ const Index = () => {
             onChange={(e) => { setCustomTopic(e.target.value); setSelectedTopic(""); }}
             className="bg-card border-border text-foreground placeholder:text-muted-foreground"
           />
+        </div>
+
+        {/* Age Selector */}
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Child's age</p>
+          <div className="flex gap-3">
+            {AGES.map(({ label, value }) => (
+              <button
+                key={value}
+                onClick={() => setSelectedAge(value)}
+                className={`flex-1 rounded-xl border py-3 text-center transition-all
+                  ${selectedAge === value
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border bg-card text-secondary-foreground hover:border-primary/30"
+                  }`}
+              >
+                <div className="text-sm font-medium">{label}</div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Length Selector */}

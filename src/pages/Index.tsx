@@ -1,12 +1,121 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Moon, Rocket, Fish, Sparkles, TreePine, Castle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+const TOPICS = [
+  { label: "Space adventure", icon: Rocket },
+  { label: "Underwater kingdom", icon: Fish },
+  { label: "Enchanted forest", icon: TreePine },
+  { label: "Dragon tales", icon: Sparkles },
+  { label: "Castle quest", icon: Castle },
+];
+
+const LENGTHS = [
+  { label: "Short", minutes: "~3 min", value: "short" },
+  { label: "Medium", minutes: "~7 min", value: "medium" },
+  { label: "Long", minutes: "~15 min", value: "long" },
+];
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [selectedTopic, setSelectedTopic] = useState("");
+  const [customTopic, setCustomTopic] = useState("");
+  const [selectedLength, setSelectedLength] = useState("medium");
+
+  const topic = customTopic || selectedTopic;
+
+  const handleStart = () => {
+    if (!topic) return;
+    navigate("/story", { state: { topic, length: selectedLength } });
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="w-full max-w-md space-y-10"
+      >
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <motion.div
+            animate={{ rotate: [0, 5, -5, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="inline-block"
+          >
+            <Moon className="h-12 w-12 text-primary mx-auto" />
+          </motion.div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground font-serif"
+              style={{ fontFamily: "'Crimson Pro', serif" }}>
+            Bedtime Stories
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Pick a story and let the magic begin
+          </p>
+        </div>
+
+        {/* Topic Cards */}
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Choose a theme</p>
+          <div className="grid grid-cols-2 gap-3">
+            {TOPICS.map(({ label, icon: Icon }) => (
+              <button
+                key={label}
+                onClick={() => { setSelectedTopic(label); setCustomTopic(""); }}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-all
+                  ${selectedTopic === label && !customTopic
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border bg-card text-secondary-foreground hover:border-primary/30 hover:bg-card/80"
+                  }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <Input
+            placeholder="Or type your own idea…"
+            value={customTopic}
+            onChange={(e) => { setCustomTopic(e.target.value); setSelectedTopic(""); }}
+            className="bg-card border-border text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+
+        {/* Length Selector */}
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Story length</p>
+          <div className="flex gap-3">
+            {LENGTHS.map(({ label, minutes, value }) => (
+              <button
+                key={value}
+                onClick={() => setSelectedLength(value)}
+                className={`flex-1 rounded-xl border py-3 text-center transition-all
+                  ${selectedLength === value
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border bg-card text-secondary-foreground hover:border-primary/30"
+                  }`}
+              >
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-muted-foreground">{minutes}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Start Button */}
+        <Button
+          onClick={handleStart}
+          disabled={!topic}
+          size="lg"
+          className="w-full rounded-xl bg-primary text-primary-foreground text-lg py-6 hover:bg-primary/90 disabled:opacity-30 transition-all"
+        >
+          Start Story
+        </Button>
+      </motion.div>
     </div>
   );
 };

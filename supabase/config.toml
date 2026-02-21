@@ -1,1 +1,4 @@
 project_id = "ukemnjdclpmrqaumhkuf"
+
+[functions.elevenlabs-conversation-token]
+verify_jwt = false

@@ -43,6 +43,8 @@ const StoryMode = () => {
   const wrapUpSentRef = useRef(false);
   const transcriptRef = useRef<string[]>([]);
   const summarySentRef = useRef(false);
+  const currentStoryIdRef = useRef<string | undefined>(storyId);
+  const isStoppedRef = useRef(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -68,12 +70,14 @@ const StoryMode = () => {
 
   // Wrap-up nudge and auto-stop
   useEffect(() => {
-    if (sleepRemaining === 60 && !wrapUpSentRef.current && !isStopped) {
+    if (sleepRemaining === 60 && !wrapUpSentRef.current && !isStoppedRef.current) {
       wrapUpSentRef.current = true;
       conversation.sendUserMessage("You have about 1 minute left. Please start wrapping up the story with a gentle, satisfying ending now.");
     }
-    if (sleepRemaining === 0 && !isStopped) {
-      conversation.endSession().then(() => setIsStopped(true));
+    if (sleepRemaining === 0 && !isStoppedRef.current) {
+      isStoppedRef.current = true;
+      setIsStopped(true);
+      conversation.endSession();
       toast({ title: "Goodnight 🌙", description: "The story has ended. Sweet dreams!" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,7 +104,10 @@ const StoryMode = () => {
     try {
       if (isNew) {
         const { data } = await supabase.from("stories").insert({ topic, length, age: age || 4 }).select("id").single();
-        if (data) setCurrentStoryId(data.id);
+        if (data) {
+          setCurrentStoryId(data.id);
+          currentStoryIdRef.current = data.id;
+        }
       } else if (storyId) {
         await supabase
           .from("stories")
@@ -118,12 +125,16 @@ const StoryMode = () => {
   // Save summary when story ends
   const saveSummary = useCallback(async () => {
     if (summarySentRef.current) return;
-    const sid = currentStoryId;
+    const sid = currentStoryIdRef.current;
     const transcript = transcriptRef.current.join("\n");
-    if (!sid || !transcript) return;
+    if (!sid || !transcript) {
+      console.log("saveSummary skipped: no storyId or transcript", { sid, transcriptLen: transcript.length });
+      return;
+    }
     summarySentRef.current = true;
     try {
-      await supabase.functions.invoke("summarize-story", {
+      console.log("Calling summarize-story for storyId:", sid);
+      const { data, error } = await supabase.functions.invoke("summarize-story", {
         body: { 
           storyId: sid, 
           transcript, 
@@ -131,11 +142,15 @@ const StoryMode = () => {
           episodeNumber: episodeCount ? (isNew ? 1 : (episodeCount + 1)) : 1,
         },
       });
-      console.log("Story summary saved");
+      if (error) {
+        console.error("Summarize-story error:", error);
+      } else {
+        console.log("Story summary saved:", data);
+      }
     } catch (err) {
       console.error("Failed to save summary:", err);
     }
-  }, [currentStoryId, previousSummary]);
+  }, [previousSummary, episodeCount, isNew]);
 
   const ageLabel = age || 4;
   const durationMinutes = LENGTH_MINUTES[length] || 7;
@@ -175,7 +190,7 @@ const StoryMode = () => {
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
       saveSummary();
-      if (!isStopped && hasStarted) {
+      if (!isStoppedRef.current && hasStarted) {
         setConnectionFailed(true);
         toast({
           variant: "destructive",
@@ -273,12 +288,13 @@ const StoryMode = () => {
   }, [conversation, topic, length, isConnecting, toast]);
 
   const stopConversation = useCallback(async () => {
+    isStoppedRef.current = true;
+    setIsStopped(true);
     saveSummary();
     await conversation.endSession();
     if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
     sleepTimerRef.current = null;
     setSleepRemaining(null);
-    setIsStopped(true);
   }, [conversation, saveSummary]);
 
   const goHome = useCallback(() => {
@@ -286,6 +302,7 @@ const StoryMode = () => {
   }, [navigate]);
 
   const resumeConversation = useCallback(async () => {
+    isStoppedRef.current = false;
     setIsStopped(false);
     savedRef.current = true;
     await startConversation();

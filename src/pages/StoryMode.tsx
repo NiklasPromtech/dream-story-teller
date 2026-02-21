@@ -62,8 +62,12 @@ const StoryMode = () => {
     }, 1000);
   }, []);
 
-  // Auto-stop when sleep timer hits 0
+  // Wrap-up nudge and auto-stop
   useEffect(() => {
+    if (sleepRemaining === 60 && !wrapUpSentRef.current && !isStopped) {
+      wrapUpSentRef.current = true;
+      conversation.sendUserMessage("You have about 1 minute left. Please start wrapping up the story with a gentle, satisfying ending now.");
+    }
     if (sleepRemaining === 0 && !isStopped) {
       conversation.endSession().then(() => setIsStopped(true));
       toast({ title: "Goodnight 🌙", description: "The story has ended. Sweet dreams!" });
@@ -107,6 +111,7 @@ const StoryMode = () => {
   }, [isNew, storyId, topic, length, episodeCount]);
 
   const ageLabel = age || 4;
+  const durationMinutes = LENGTH_MINUTES[length] || 7;
   const storyPrompt = `You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
     ageLabel <= 3
       ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
@@ -115,7 +120,7 @@ const StoryMode = () => {
         : ageLabel <= 8
           ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
           : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
-  } Tell a ${length || "medium"}-length bedtime story about: ${topic || "a magical adventure"}. Start telling the story immediately without asking questions first.`;
+  } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Start telling the story immediately.`;
 
   const conversation = useConversation({
     onConnect: () => {
@@ -123,6 +128,7 @@ const StoryMode = () => {
       setHasStarted(true);
       setConnectionFailed(false);
       saveStory();
+      wrapUpSentRef.current = false;
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
       startSleepTimer(mins);

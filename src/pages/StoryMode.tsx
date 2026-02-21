@@ -97,6 +97,7 @@ const StoryMode = () => {
     onConnect: () => {
       console.log("Connected to storyteller");
       setHasStarted(true);
+      setConnectionFailed(false);
       saveStory();
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
@@ -104,9 +105,19 @@ const StoryMode = () => {
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
+      // If we haven't explicitly stopped, treat as unexpected disconnect
+      if (!isStopped && hasStarted) {
+        setConnectionFailed(true);
+        toast({
+          variant: "destructive",
+          title: "Connection Lost",
+          description: "The storyteller disconnected. Tap retry to reconnect.",
+        });
+      }
     },
     onError: (error) => {
       console.error("Conversation error:", error);
+      setConnectionFailed(true);
       toast({
         variant: "destructive",
         title: "Connection Error",
@@ -178,10 +189,24 @@ const StoryMode = () => {
     await startConversation();
   }, [startConversation]);
 
+  // Auto-start and connection timeout
   useEffect(() => {
-    if (topic && !hasStarted && !isConnecting) {
+    if (!topic) return;
+    if (!hasStarted && !isConnecting) {
       startConversation();
     }
+    // Connection timeout: if still not connected after 20s, show retry
+    const timeout = setTimeout(() => {
+      if (conversation.status !== "connected" && !isStopped && !connectionFailed) {
+        setConnectionFailed(true);
+        toast({
+          variant: "destructive",
+          title: "Connection Timeout",
+          description: "Taking too long to connect. Tap retry to try again.",
+        });
+      }
+    }, 20000);
+    return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);
 

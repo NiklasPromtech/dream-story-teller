@@ -36,9 +36,9 @@ serve(async (req) => {
             : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
     } The story theme is: ${topic || "a magical adventure"}. Story length: ${length || "medium"}.`;
 
-    // Get conversation token with overrides
+    // Get signed URL for WebSocket connection
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${ELEVENLABS_AGENT_ID}`,
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
       {
         method: "GET",
         headers: {
@@ -49,13 +49,13 @@ serve(async (req) => {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("ElevenLabs token error:", response.status, text);
+      console.error("ElevenLabs signed URL error:", response.status, text);
       throw new Error(`ElevenLabs API error: ${response.status}`);
     }
 
-    const { token } = await response.json();
+    const { signed_url } = await response.json();
 
-    return new Response(JSON.stringify({ token, overrides: { prompt: agePrompt } }), {
+    return new Response(JSON.stringify({ signed_url, overrides: { prompt: agePrompt } }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

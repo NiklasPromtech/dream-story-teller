@@ -146,13 +146,6 @@ const StoryMode = () => {
       console.log("Connecting via WebSocket...");
       await conversation.startSession({
         signedUrl: data.signed_url,
-        ...(data.overrides ? {
-          overrides: {
-            agent: {
-              prompt: { prompt: data.overrides.prompt },
-            },
-          },
-        } : {}),
       });
     } catch (err: any) {
       console.error("Failed to start:", err);

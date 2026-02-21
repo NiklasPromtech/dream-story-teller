@@ -16,7 +16,7 @@ const StoryMode = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { topic, length, age, storyId, episodeCount, isNew, previousSummary } =
+  const { topic, length, age, storyId, episodeCount, isNew, previousSummary, episodeTheme } =
     (location.state as {
       topic: string;
       length: string;
@@ -25,6 +25,7 @@ const StoryMode = () => {
       episodeCount?: number;
       isNew: boolean;
       previousSummary?: string;
+      episodeTheme?: string;
     }) || {};
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -180,6 +181,10 @@ const StoryMode = () => {
   } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Start telling the story immediately.${
     previousSummary
       ? `\n\nIMPORTANT CONTINUITY: This is a continuing story. Here is what happened in previous episodes — use these characters, relationships, and world details to continue the story naturally:\n${previousSummary}`
+      : ""
+  }${
+    episodeTheme
+      ? `\n\nThe child's parent would like this episode to focus on: ${episodeTheme}`
       : ""
   }`;
 

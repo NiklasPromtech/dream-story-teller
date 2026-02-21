@@ -1,10 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Moon, Rocket, Fish, Sparkles, TreePine, Castle, Play } from "lucide-react";
+import { Moon, Rocket, Fish, Sparkles, TreePine, Castle, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import EpisodePromptDialog from "@/components/EpisodePromptDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const TOPICS = [
   { label: "Space adventure", icon: Rocket },
@@ -37,6 +48,36 @@ type Story = {
   story_summary: string | null;
 };
 
+type GroupedStory = {
+  topic: string;
+  totalEpisodes: number;
+  latestStory: Story;
+  storyCount: number;
+  allIds: string[];
+};
+
+function groupStoriesByTopic(stories: Story[]): GroupedStory[] {
+  const map = new Map<string, Story[]>();
+  stories.forEach((s) => {
+    const key = s.topic.toLowerCase().trim();
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(s);
+  });
+  const groups: GroupedStory[] = [];
+  map.forEach((items) => {
+    items.sort((a, b) => new Date(b.last_played_at).getTime() - new Date(a.last_played_at).getTime());
+    groups.push({
+      topic: items[0].topic,
+      totalEpisodes: items.reduce((sum, s) => sum + s.episode_count, 0),
+      latestStory: items[0],
+      storyCount: items.length,
+      allIds: items.map((s) => s.id),
+    });
+  });
+  groups.sort((a, b) => new Date(b.latestStory.last_played_at).getTime() - new Date(a.latestStory.last_played_at).getTime());
+  return groups;
+}
+
 const Index = () => {
   const navigate = useNavigate();
   const [selectedTopic, setSelectedTopic] = useState("");
@@ -44,26 +85,33 @@ const Index = () => {
   const [selectedLength, setSelectedLength] = useState("medium");
   const [selectedAge, setSelectedAge] = useState(4);
   const [pastStories, setPastStories] = useState<Story[]>([]);
+  const [promptStory, setPromptStory] = useState<Story | null>(null);
+  const [deleteGroup, setDeleteGroup] = useState<GroupedStory | null>(null);
 
   const topic = customTopic || selectedTopic;
 
-  useEffect(() => {
+  const fetchStories = () => {
     supabase
       .from("stories")
       .select("*")
       .order("last_played_at", { ascending: false })
-      .limit(5)
       .then(({ data }) => {
         if (data) setPastStories(data);
       });
+  };
+
+  useEffect(() => {
+    fetchStories();
   }, []);
+
+  const groupedStories = groupStoriesByTopic(pastStories);
 
   const handleStart = () => {
     if (!topic) return;
     navigate("/story", { state: { topic, length: selectedLength, age: selectedAge, isNew: true } });
   };
 
-  const handleContinue = (story: Story) => {
+  const handleContinue = (story: Story, episodeTheme?: string) => {
     navigate("/story", {
       state: {
         topic: story.topic,
@@ -73,8 +121,17 @@ const Index = () => {
         episodeCount: story.episode_count,
         isNew: false,
         previousSummary: story.story_summary || "",
+        episodeTheme,
       },
     });
+  };
+
+  const handleDelete = async (group: GroupedStory) => {
+    for (const id of group.allIds) {
+      await supabase.from("stories").delete().eq("id", id);
+    }
+    setDeleteGroup(null);
+    fetchStories();
   };
 
   return (
@@ -105,32 +162,42 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Continue past stories */}
-        {pastStories.length > 0 && (
+        {/* Continue past stories (grouped) */}
+        {groupedStories.length > 0 && (
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-widest text-muted-foreground">
               Continue a story
             </p>
             <div className="space-y-2">
-              {pastStories.map((story) => (
-                <div key={story.id} className="flex w-full items-center gap-2">
+              {groupedStories.map((group) => (
+                <div key={group.latestStory.id} className="flex w-full items-center gap-2">
                   <button
-                    onClick={() => navigate(`/topic/${story.id}`)}
+                    onClick={() => navigate(`/topic/${group.latestStory.id}`)}
                     className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-secondary-foreground transition-all hover:border-primary/30 hover:bg-card/80"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate">{story.topic}</p>
+                      <p className="truncate">{group.topic}</p>
                       <p className="text-xs text-muted-foreground">
-                        Episode {story.episode_count} · {story.length} · age {story.age}+
+                        {group.totalEpisodes} episode{group.totalEpisodes !== 1 ? "s" : ""} · {group.latestStory.length} · age {group.latestStory.age}+
+                        {group.storyCount > 1 && (
+                          <span className="text-primary/70"> · {group.storyCount} series</span>
+                        )}
                       </p>
                     </div>
                   </button>
                   <button
-                    onClick={() => handleContinue(story)}
+                    onClick={() => setPromptStory(group.latestStory)}
                     className="flex h-full items-center justify-center rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-primary transition-all hover:bg-primary/20"
                     title="Play next episode"
                   >
                     <Play className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteGroup(group)}
+                    className="flex h-full items-center justify-center rounded-xl border border-border px-3 py-3 text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive hover:bg-destructive/10"
+                    title="Delete story"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
@@ -141,7 +208,7 @@ const Index = () => {
         {/* Topic Cards */}
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            {pastStories.length > 0 ? "Or start a new story" : "Choose a theme"}
+            {groupedStories.length > 0 ? "Or start a new story" : "Choose a theme"}
           </p>
           <div className="grid grid-cols-2 gap-3">
             {TOPICS.map(({ label, icon: Icon }) => (
@@ -218,6 +285,38 @@ const Index = () => {
           Start Story
         </Button>
       </motion.div>
+
+      {/* Episode Prompt Dialog */}
+      <EpisodePromptDialog
+        open={!!promptStory}
+        onOpenChange={(open) => !open && setPromptStory(null)}
+        onStart={(theme) => {
+          if (promptStory) handleContinue(promptStory, theme);
+          setPromptStory(null);
+        }}
+        topicName={promptStory?.topic || ""}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteGroup} onOpenChange={(open) => !open && setDeleteGroup(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteGroup?.topic}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {deleteGroup?.storyCount === 1 ? "this story" : `all ${deleteGroup?.storyCount} series`} and {deleteGroup?.totalEpisodes} episode{deleteGroup?.totalEpisodes !== 1 ? "s" : ""}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteGroup && handleDelete(deleteGroup)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

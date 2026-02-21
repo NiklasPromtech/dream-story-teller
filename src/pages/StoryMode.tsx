@@ -124,7 +124,12 @@ const StoryMode = () => {
     summarySentRef.current = true;
     try {
       await supabase.functions.invoke("summarize-story", {
-        body: { storyId: sid, transcript, previousSummary: previousSummary || "" },
+        body: { 
+          storyId: sid, 
+          transcript, 
+          previousSummary: previousSummary || "",
+          episodeNumber: episodeCount ? (isNew ? 1 : (episodeCount + 1)) : 1,
+        },
       });
       console.log("Story summary saved");
     } catch (err) {

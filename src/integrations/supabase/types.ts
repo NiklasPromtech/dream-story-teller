@@ -47,6 +47,47 @@ export type Database = {
         }
         Relationships: []
       }
+      story_episodes: {
+        Row: {
+          characters: Json | null
+          created_at: string
+          episode_number: number
+          id: string
+          session_name: string | null
+          story_id: string
+          summary: string | null
+          transcript: string | null
+        }
+        Insert: {
+          characters?: Json | null
+          created_at?: string
+          episode_number?: number
+          id?: string
+          session_name?: string | null
+          story_id: string
+          summary?: string | null
+          transcript?: string | null
+        }
+        Update: {
+          characters?: Json | null
+          created_at?: string
+          episode_number?: number
+          id?: string
+          session_name?: string | null
+          story_id?: string
+          summary?: string | null
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_episodes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -113,19 +113,26 @@ const Index = () => {
             </p>
             <div className="space-y-2">
               {pastStories.map((story) => (
-                <button
-                  key={story.id}
-                  onClick={() => handleContinue(story)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-secondary-foreground transition-all hover:border-primary/30 hover:bg-card/80"
-                >
-                  <Play className="h-4 w-4 shrink-0 text-primary" />
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate">{story.topic}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Episode {story.episode_count} · {story.length} · age {story.age}+
-                    </p>
-                  </div>
-                </button>
+                <div key={story.id} className="flex w-full items-center gap-2">
+                  <button
+                    onClick={() => navigate(`/topic/${story.id}`)}
+                    className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-secondary-foreground transition-all hover:border-primary/30 hover:bg-card/80"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{story.topic}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Episode {story.episode_count} · {story.length} · age {story.age}+
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleContinue(story)}
+                    className="flex h-full items-center justify-center rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-primary transition-all hover:bg-primary/20"
+                    title="Play next episode"
+                  >
+                    <Play className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

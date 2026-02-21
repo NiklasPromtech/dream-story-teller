@@ -43,6 +43,8 @@ const StoryMode = () => {
   const summarySentRef = useRef(false);
   const currentStoryIdRef = useRef<string | undefined>(storyId);
   const isStoppedRef = useRef(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasSpeakingRef = useRef(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -50,12 +52,14 @@ const StoryMode = () => {
     return () => clearTimeout(t);
   }, []);
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
+
 
   // Auto-scroll transcript to bottom
   useEffect(() => {
@@ -134,7 +138,7 @@ const StoryMode = () => {
         : ageLabel <= 8
           ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
           : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
-  } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Start telling the story immediately.${
+  } Tell a bedtime story about: ${topic || "a magical adventure"}. IMPORTANT: The story MUST be exactly ${durationMinutes} minutes long when spoken aloud. Pace yourself carefully — begin winding down the story naturally as you approach the end. Do NOT ask questions or wait for input. Do NOT prompt the listener with questions like "are you there?" or "shall I continue?" — just tell the story continuously. When the story reaches its natural end, say a warm goodnight message like "Goodnight, sweet dreams" and then STOP TALKING. Do not continue after saying goodnight. If the child or parent says anything like "goodnight", "I'm done", "that's enough", or "thank you", immediately wrap up with a brief gentle closing and stop. Start telling the story immediately.${
     previousSummary
       ? `\n\nIMPORTANT CONTINUITY: This is a continuing story. Here is what happened in previous episodes — use these characters, relationships, and world details to continue the story naturally:\n${previousSummary}`
       : ""
@@ -316,6 +320,33 @@ const StoryMode = () => {
   }, [topic]);
 
   const isActive = conversation.status === "connected";
+
+  // Auto-end session after prolonged silence (story naturally finished)
+  useEffect(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (conversation.isSpeaking) {
+      wasSpeakingRef.current = true;
+    } else if (
+      wasSpeakingRef.current &&
+      conversation.status === "connected" &&
+      !isStoppedRef.current &&
+      secondsSinceConnect !== null &&
+      secondsSinceConnect > 30
+    ) {
+      // AI stopped speaking after having spoken — wait 15s of silence then auto-end
+      silenceTimerRef.current = setTimeout(() => {
+        if (!isStoppedRef.current && !conversation.isSpeaking) {
+          console.log("Auto-ending session after prolonged silence (story finished)");
+          isStoppedRef.current = true;
+          setIsStopped(true);
+          conversation.endSession();
+        }
+      }, 15000);
+    }
+  }, [conversation.isSpeaking, conversation.status, secondsSinceConnect, conversation]);
 
 
   return (

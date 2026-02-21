@@ -248,7 +248,7 @@ const StoryMode = () => {
     }
     // Connection timeout: if still not connected after 20s, show retry
     const timeout = setTimeout(() => {
-      if (conversation.status !== "connected" && !isStopped && !connectionFailed) {
+      if (!hasStarted && conversation.status !== "connected" && !isStopped && !connectionFailed) {
         setConnectionFailed(true);
         toast({
           variant: "destructive",

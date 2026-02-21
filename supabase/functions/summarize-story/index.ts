@@ -25,15 +25,13 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const aiResponse = await fetch(
-      `https://wpczgwxsriezaubncuom.functions.supabase.co/ai`,
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${lovableApiKey}`,
-          apikey: anonKey,
         },
         body: JSON.stringify({
           messages: [

@@ -22,6 +22,8 @@ export type Database = {
           id: string
           last_played_at: string
           length: string
+          story_description: string | null
+          story_name: string | null
           story_summary: string | null
           topic: string
         }
@@ -32,6 +34,8 @@ export type Database = {
           id?: string
           last_played_at?: string
           length?: string
+          story_description?: string | null
+          story_name?: string | null
           story_summary?: string | null
           topic: string
         }
@@ -42,6 +46,8 @@ export type Database = {
           id?: string
           last_played_at?: string
           length?: string
+          story_description?: string | null
+          story_name?: string | null
           story_summary?: string | null
           topic?: string
         }

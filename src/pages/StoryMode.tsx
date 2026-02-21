@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion } from "framer-motion";
@@ -10,15 +10,46 @@ const StoryMode = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { topic, length } = (location.state as { topic: string; length: string }) || {};
+  const { topic, length, storyId, episodeCount, isNew } =
+    (location.state as {
+      topic: string;
+      length: string;
+      storyId?: string;
+      episodeCount?: number;
+      isNew: boolean;
+    }) || {};
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [connectionFailed, setConnectionFailed] = useState(false);
+  const savedRef = useRef(false);
+
+  // Save or update story in DB when conversation starts
+  const saveStory = useCallback(async () => {
+    if (savedRef.current) return;
+    savedRef.current = true;
+
+    try {
+      if (isNew) {
+        await supabase.from("stories").insert({ topic, length });
+      } else if (storyId) {
+        await supabase
+          .from("stories")
+          .update({
+            episode_count: (episodeCount || 1) + 1,
+            last_played_at: new Date().toISOString(),
+          })
+          .eq("id", storyId);
+      }
+    } catch (err) {
+      console.error("Failed to save story:", err);
+    }
+  }, [isNew, storyId, topic, length, episodeCount]);
 
   const conversation = useConversation({
     onConnect: () => {
       console.log("Connected to storyteller");
       setHasStarted(true);
+      saveStory();
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
@@ -33,7 +64,6 @@ const StoryMode = () => {
     },
   });
 
-  // Redirect if no topic
   useEffect(() => {
     if (!topic) navigate("/");
   }, [topic, navigate]);
@@ -45,9 +75,10 @@ const StoryMode = () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token", {
-        body: { topic, length },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "elevenlabs-conversation-token",
+        { body: { topic, length } }
+      );
 
       if (error || !data?.token) {
         throw new Error(error?.message || "No token received");
@@ -60,7 +91,8 @@ const StoryMode = () => {
     } catch (err: any) {
       console.error("Failed to start:", err);
       setConnectionFailed(true);
-      const isPermissionError = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError";
+      const isPermissionError =
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError";
       toast({
         variant: "destructive",
         title: isPermissionError ? "Microphone Required" : "Connection Failed",
@@ -78,7 +110,6 @@ const StoryMode = () => {
     navigate("/");
   }, [conversation, navigate]);
 
-  // Auto-start on mount
   useEffect(() => {
     if (topic && !hasStarted && !isConnecting) {
       startConversation();
@@ -90,35 +121,33 @@ const StoryMode = () => {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-      {/* Subtle moon glow */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 2 }}
         className="relative"
       >
-        {/* Glow ring */}
         <motion.div
           animate={{
             scale: conversation.isSpeaking ? [1, 1.3, 1] : [1, 1.1, 1],
             opacity: conversation.isSpeaking ? [0.3, 0.6, 0.3] : [0.1, 0.2, 0.1],
           }}
-          transition={{ duration: conversation.isSpeaking ? 1.5 : 4, repeat: Infinity, ease: "easeInOut" }}
+          transition={{
+            duration: conversation.isSpeaking ? 1.5 : 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
           className="absolute inset-0 rounded-full bg-primary/20 blur-3xl"
           style={{ width: 200, height: 200, left: -60, top: -60 }}
         />
-
         <motion.div
-          animate={{
-            scale: conversation.isSpeaking ? [1, 1.05, 1] : 1,
-          }}
+          animate={{ scale: conversation.isSpeaking ? [1, 1.05, 1] : 1 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         >
           <Moon className="h-20 w-20 text-muted-foreground/30" />
         </motion.div>
       </motion.div>
 
-      {/* Status text */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -136,7 +165,6 @@ const StoryMode = () => {
               : "Connecting…"}
       </motion.p>
 
-      {/* Retry / Stop buttons */}
       <div className="mt-16 flex gap-4">
         {connectionFailed && (
           <motion.button

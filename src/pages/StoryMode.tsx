@@ -212,14 +212,19 @@ const StoryMode = () => {
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
       saveSummary();
-      // Only show error if the user didn't intentionally stop and the timer has run out
-      if (!isStoppedRef.current && hasStarted && sleepRemainingRef.current > 0) {
-        setConnectionFailed(true);
+      // If the user didn't stop and the timer is still running, auto-retry
+      if (!isStoppedRef.current && hasStartedRef.current && sleepRemainingRef.current > 0) {
+        console.log("Unexpected disconnect, auto-retrying in 2s...");
         toast({
-          variant: "destructive",
-          title: "Connection Lost",
-          description: "The storyteller disconnected. Tap retry to reconnect.",
+          title: "Reconnecting…",
+          description: "The storyteller dropped briefly. Reconnecting now.",
         });
+        setTimeout(() => {
+          if (!isStoppedRef.current) {
+            savedRef.current = true; // Don't re-create the story
+            startConversation();
+          }
+        }, 2000);
       }
     },
     onError: (error) => {
@@ -232,10 +237,13 @@ const StoryMode = () => {
       });
     },
     onMessage: (message: any) => {
+      console.log("EL message type:", message.type);
       if (message.type === "agent_response") {
         transcriptRef.current.push(`Storyteller: ${message.agent_response_event?.agent_response || ""}`);
       } else if (message.type === "user_transcript") {
         transcriptRef.current.push(`Child: ${message.user_transcription_event?.user_transcript || ""}`);
+      } else if (message.type === "audio") {
+        // Audio events are expected, ignore for transcript
       }
     },
   });

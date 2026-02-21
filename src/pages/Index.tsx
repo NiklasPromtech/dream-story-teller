@@ -34,6 +34,7 @@ type Story = {
   age: number;
   episode_count: number;
   last_played_at: string;
+  story_summary: string | null;
 };
 
 const Index = () => {
@@ -67,9 +68,11 @@ const Index = () => {
       state: {
         topic: story.topic,
         length: story.length,
+        age: story.age,
         storyId: story.id,
         episodeCount: story.episode_count,
         isNew: false,
+        previousSummary: story.story_summary || "",
       },
     });
   };

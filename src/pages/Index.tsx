@@ -92,14 +92,29 @@ const Index = () => {
 
   const topic = customTopic || selectedTopic;
 
-  const fetchStories = () => {
-    supabase
+  const fetchStories = async () => {
+    const { data: storiesData } = await supabase
       .from("stories")
       .select("*")
-      .order("last_played_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setPastStories(data);
-      });
+      .order("last_played_at", { ascending: false });
+    if (!storiesData) return;
+
+    // Get actual episode counts from story_episodes table
+    const { data: episodeCounts } = await supabase
+      .from("story_episodes")
+      .select("story_id");
+
+    const countMap = new Map<string, number>();
+    episodeCounts?.forEach((e) => {
+      countMap.set(e.story_id, (countMap.get(e.story_id) || 0) + 1);
+    });
+
+    setPastStories(
+      storiesData.map((s) => ({
+        ...s,
+        episode_count: countMap.get(s.id) || 0,
+      }))
+    );
   };
 
   useEffect(() => {

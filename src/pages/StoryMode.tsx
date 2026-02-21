@@ -38,6 +38,7 @@ const StoryMode = () => {
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+  const wrapUpSentRef = useRef(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {

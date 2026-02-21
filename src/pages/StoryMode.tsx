@@ -31,8 +31,10 @@ const StoryMode = () => {
   const [isStopped, setIsStopped] = useState(false);
   const [fadeReady, setFadeReady] = useState(false);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
+  const [secondsSinceConnect, setSecondsSinceConnect] = useState<number | null>(null);
   const savedRef = useRef(false);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const connectTimeRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -69,8 +71,15 @@ const StoryMode = () => {
   useEffect(() => {
     return () => {
       if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+      if (connectTimeRef.current) clearInterval(connectTimeRef.current);
     };
   }, []);
+
+  const extendStory = useCallback((minutes: number) => {
+    setSleepRemaining((prev) => (prev !== null ? prev + minutes * 60 : minutes * 60));
+    toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
+  }, [toast]);
+
 
   // Save or update story in DB when conversation starts
   const saveStory = useCallback(async () => {
@@ -113,6 +122,12 @@ const StoryMode = () => {
       // Auto-start sleep timer based on story length
       const mins = LENGTH_MINUTES[length] || 7;
       startSleepTimer(mins);
+      // Track time since connect for contextual buttons
+      setSecondsSinceConnect(0);
+      if (connectTimeRef.current) clearInterval(connectTimeRef.current);
+      connectTimeRef.current = setInterval(() => {
+        setSecondsSinceConnect((prev) => (prev !== null ? prev + 1 : null));
+      }, 1000);
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
@@ -135,6 +150,15 @@ const StoryMode = () => {
       });
     },
   });
+
+  const triggerStartStory = useCallback(() => {
+    conversation.sendUserMessage(`Please start telling the story now.`);
+  }, [conversation]);
+
+  const extendStoryVoice = useCallback((minutes: number) => {
+    extendStory(minutes);
+    conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
+  }, [conversation, extendStory]);
 
   useEffect(() => {
     if (!topic) navigate("/");
@@ -349,6 +373,38 @@ const StoryMode = () => {
                 <Home className="h-4 w-4" />
                 Back
               </button>
+            </motion.div>
+          )}
+
+          {!isStopped && !connectionFailed && isActive && !conversation.isSpeaking && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-wrap justify-center gap-2 mb-4"
+            >
+              {secondsSinceConnect !== null && secondsSinceConnect <= 10 && (
+                <button
+                  onClick={triggerStartStory}
+                  className="flex h-10 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-5 text-xs text-primary transition-all hover:bg-primary/20"
+                >
+                  <Play className="h-3 w-3" />
+                  Start Story
+                </button>
+              )}
+              {secondsSinceConnect !== null && secondsSinceConnect > 10 && (
+                <>
+                  {[3, 6, 9].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => extendStoryVoice(m)}
+                      className="flex h-10 items-center gap-1 rounded-full border border-border/50 bg-card/50 px-4 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+                    >
+                      +{m} min
+                    </button>
+                  ))}
+                </>
+              )}
             </motion.div>
           )}
 

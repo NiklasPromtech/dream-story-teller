@@ -19,14 +19,21 @@ serve(async (req) => {
       throw new Error("storyId and transcript are required");
     }
 
-    // Use AI to generate a structured summary
+    // Use Lovable AI proxy to generate a structured summary
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const aiResponse = await fetch(
-      `https://ukemnjdclpmrqaumhkuf.supabase.co/functions/v1/ai`,
+      `https://wpczgwxsriezaubncuom.functions.supabase.co/ai`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          Authorization: `Bearer ${lovableApiKey}`,
+          apikey: anonKey,
         },
         body: JSON.stringify({
           messages: [

@@ -13,13 +13,13 @@ serve(async (req) => {
   }
 
   try {
-    const { storyId, transcript, previousSummary } = await req.json();
+    const { storyId, transcript, previousSummary, episodeNumber } = await req.json();
 
     if (!storyId || !transcript) {
       throw new Error("storyId and transcript are required");
     }
 
-    // Use Lovable AI to generate a summary
+    // Use AI to generate a structured summary
     const aiResponse = await fetch(
       `https://ukemnjdclpmrqaumhkuf.supabase.co/functions/v1/ai`,
       {
@@ -32,13 +32,21 @@ serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `You are a story summarizer. Given a bedtime story transcript, create a concise summary (max 500 words) that captures:
-1. Main characters and their personalities/relationships
-2. Key plot points and world details
-3. Any recurring themes, jokes, or elements the child seemed to enjoy
-4. Where the story left off
+              content: `You are a story summarizer. Given a bedtime story transcript, return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
 
-This summary will be used to continue the story in future sessions, so focus on details that help maintain continuity. Write in present tense as a reference document, not as a story.${
+{
+  "summary": "A concise summary (max 300 words) of what happened this episode. Write in present tense.",
+  "session_name": "A short, evocative title for this episode (3-6 words)",
+  "characters": [
+    { "name": "Character Name", "description": "One sentence describing who they are and their role" }
+  ]
+}
+
+Focus on:
+1. Key plot points and where the story left off
+2. All named characters with clear descriptions
+3. Recurring themes or elements the child enjoyed
+4. Details that help maintain continuity${
                 previousSummary
                   ? `\n\nPrevious episodes summary:\n${previousSummary}`
                   : ""
@@ -61,25 +69,66 @@ This summary will be used to continue the story in future sessions, so focus on 
     }
 
     const aiData = await aiResponse.json();
-    const summary = aiData.choices?.[0]?.message?.content || "";
+    const rawContent = aiData.choices?.[0]?.message?.content || "";
 
-    // Save summary to database
+    // Parse the structured JSON response
+    let parsed: { summary: string; session_name: string; characters: Array<{ name: string; description: string }> };
+    try {
+      // Strip any markdown code fences if present
+      const cleaned = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("Failed to parse AI JSON, falling back:", parseErr);
+      parsed = {
+        summary: rawContent,
+        session_name: "Untitled Episode",
+        characters: [],
+      };
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Insert episode record
+    const { error: episodeError } = await supabaseAdmin
+      .from("story_episodes")
+      .insert({
+        story_id: storyId,
+        episode_number: episodeNumber || 1,
+        session_name: parsed.session_name,
+        summary: parsed.summary,
+        characters: parsed.characters,
+        transcript,
+      });
+
+    if (episodeError) {
+      console.error("Failed to save episode:", episodeError);
+      throw new Error("Failed to save episode");
+    }
+
+    // Build cumulative summary for the parent story
+    const cumulativeSummary = previousSummary
+      ? `${previousSummary}\n\nEpisode ${episodeNumber || 1} - ${parsed.session_name}:\n${parsed.summary}`
+      : `Episode ${episodeNumber || 1} - ${parsed.session_name}:\n${parsed.summary}`;
+
+    // Update the parent story with cumulative summary
     const { error: updateError } = await supabaseAdmin
       .from("stories")
-      .update({ story_summary: summary })
+      .update({ story_summary: cumulativeSummary })
       .eq("id", storyId);
 
     if (updateError) {
-      console.error("Failed to save summary:", updateError);
-      throw new Error("Failed to save summary");
+      console.error("Failed to update story summary:", updateError);
+      throw new Error("Failed to update story summary");
     }
 
-    return new Response(JSON.stringify({ summary }), {
+    return new Response(JSON.stringify({ 
+      summary: parsed.summary,
+      session_name: parsed.session_name,
+      characters: parsed.characters,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

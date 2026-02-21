@@ -137,7 +137,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-background px-6 py-12">
+    <div className="flex min-h-screen flex-col items-center bg-background px-6 py-12 pb-safe">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -180,7 +180,7 @@ const Index = () => {
                     <div className="flex-1 min-w-0">
                       <p className="truncate font-medium">{group.latestStory.story_name || group.topic}</p>
                       {group.latestStory.story_description && (
-                        <p className="text-xs text-muted-foreground truncate">{group.latestStory.story_description}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{group.latestStory.story_description}</p>
                       )}
                       <p className="text-xs text-muted-foreground">
                         {group.totalEpisodes} episode{group.totalEpisodes !== 1 ? "s" : ""} · {group.latestStory.length} · age {group.latestStory.age}+
@@ -192,17 +192,17 @@ const Index = () => {
                   </button>
                   <button
                     onClick={() => setPromptStory(group.latestStory)}
-                    className="flex h-full items-center justify-center rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-primary transition-all hover:bg-primary/20"
+                    className="flex items-center justify-center rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-primary transition-all hover:bg-primary/20 active:scale-95"
                     title="Play next episode"
                   >
-                    <Play className="h-4 w-4" />
+                    <Play className="h-5 w-5" />
                   </button>
                   <button
                     onClick={() => setDeleteGroup(group)}
-                    className="flex h-full items-center justify-center rounded-xl border border-border px-3 py-3 text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive hover:bg-destructive/10"
+                    className="flex items-center justify-center rounded-xl border border-border px-4 py-3 text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive hover:bg-destructive/10 active:scale-95"
                     title="Delete story"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
               ))}

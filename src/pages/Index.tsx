@@ -46,6 +46,8 @@ type Story = {
   episode_count: number;
   last_played_at: string;
   story_summary: string | null;
+  story_name: string | null;
+  story_description: string | null;
 };
 
 type GroupedStory = {
@@ -176,7 +178,10 @@ const Index = () => {
                     className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-secondary-foreground transition-all hover:border-primary/30 hover:bg-card/80"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate">{group.topic}</p>
+                      <p className="truncate font-medium">{group.latestStory.story_name || group.topic}</p>
+                      {group.latestStory.story_description && (
+                        <p className="text-xs text-muted-foreground truncate">{group.latestStory.story_description}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {group.totalEpisodes} episode{group.totalEpisodes !== 1 ? "s" : ""} · {group.latestStory.length} · age {group.latestStory.age}+
                         {group.storyCount > 1 && (

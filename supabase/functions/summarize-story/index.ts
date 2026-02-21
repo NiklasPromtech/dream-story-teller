@@ -44,7 +44,9 @@ serve(async (req) => {
   "session_name": "A short, evocative title for this episode (3-6 words)",
   "characters": [
     { "name": "Character Name", "description": "One sentence describing who they are and their role" }
-  ]
+  ]${!previousSummary ? `,
+  "story_name": "A catchy, short series title for the whole storyline (3-8 words). Think Netflix show name.",
+  "story_description": "A single sentence tagline/synopsis for the whole storyline. Enticing and brief."` : ""}
 }
 
 Focus on:
@@ -77,7 +79,7 @@ Focus on:
     const rawContent = aiData.choices?.[0]?.message?.content || "";
 
     // Parse the structured JSON response
-    let parsed: { summary: string; session_name: string; characters: Array<{ name: string; description: string }> };
+    let parsed: { summary: string; session_name: string; characters: Array<{ name: string; description: string }>; story_name?: string; story_description?: string };
     try {
       // Strip any markdown code fences if present
       const cleaned = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -118,10 +120,17 @@ Focus on:
       ? `${previousSummary}\n\nEpisode ${episodeNumber || 1} - ${parsed.session_name}:\n${parsed.summary}`
       : `Episode ${episodeNumber || 1} - ${parsed.session_name}:\n${parsed.summary}`;
 
-    // Update the parent story with cumulative summary
+    // Update the parent story with cumulative summary (and name/description for first episode)
+    const storyUpdate: Record<string, string> = { story_summary: cumulativeSummary };
+    if (!previousSummary && parsed.story_name) {
+      storyUpdate.story_name = parsed.story_name;
+    }
+    if (!previousSummary && parsed.story_description) {
+      storyUpdate.story_description = parsed.story_description;
+    }
     const { error: updateError } = await supabaseAdmin
       .from("stories")
-      .update({ story_summary: cumulativeSummary })
+      .update(storyUpdate)
       .eq("id", storyId);
 
     if (updateError) {
@@ -133,6 +142,8 @@ Focus on:
       summary: parsed.summary,
       session_name: parsed.session_name,
       characters: parsed.characters,
+      story_name: parsed.story_name,
+      story_description: parsed.story_description,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -13,6 +13,7 @@ const StoryMode = () => {
   const { topic, length } = (location.state as { topic: string; length: string }) || {};
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
 
   const conversation = useConversation({
     onConnect: () => {
@@ -40,6 +41,7 @@ const StoryMode = () => {
   const startConversation = useCallback(async () => {
     if (isConnecting) return;
     setIsConnecting(true);
+    setConnectionFailed(false);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -57,10 +59,14 @@ const StoryMode = () => {
       });
     } catch (err: any) {
       console.error("Failed to start:", err);
+      setConnectionFailed(true);
+      const isPermissionError = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError";
       toast({
         variant: "destructive",
-        title: "Microphone Required",
-        description: "Please allow microphone access to use the storyteller.",
+        title: isPermissionError ? "Microphone Required" : "Connection Failed",
+        description: isPermissionError
+          ? "Please allow microphone access to use the storyteller."
+          : "Could not start the story. Tap retry to try again.",
       });
     } finally {
       setIsConnecting(false);
@@ -119,26 +125,40 @@ const StoryMode = () => {
         transition={{ delay: 1 }}
         className="mt-8 text-sm text-muted-foreground/50"
       >
-        {isConnecting
-          ? "Preparing your story…"
-          : isActive
-            ? conversation.isSpeaking
-              ? "Telling your story…"
-              : "Listening…"
-            : "Connecting…"}
+        {connectionFailed
+          ? "Something went wrong"
+          : isConnecting
+            ? "Preparing your story…"
+            : isActive
+              ? conversation.isSpeaking
+                ? "Telling your story…"
+                : "Listening…"
+              : "Connecting…"}
       </motion.p>
 
-      {/* Stop button */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
-        onClick={stopConversation}
-        className="mt-16 flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
-        aria-label="Stop story"
-      >
-        <Square className="h-5 w-5 fill-current" />
-      </motion.button>
+      {/* Retry / Stop buttons */}
+      <div className="mt-16 flex gap-4">
+        {connectionFailed && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={startConversation}
+            className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20"
+          >
+            Retry
+          </motion.button>
+        )}
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: connectionFailed ? 0 : 2 }}
+          onClick={stopConversation}
+          className="flex h-14 w-14 items-center justify-center rounded-full border border-border/50 bg-card/50 text-muted-foreground/50 transition-all hover:border-destructive/50 hover:text-destructive/80"
+          aria-label="Stop story"
+        >
+          <Square className="h-5 w-5 fill-current" />
+        </motion.button>
+      </div>
     </div>
   );
 };

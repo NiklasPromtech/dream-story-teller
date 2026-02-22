@@ -156,16 +156,18 @@ const StoryMode = () => {
       hasStartedRef.current = true;
       setConnectionFailed(false);
       saveStory();
-      // Only reset transcript/summary for a truly new session (not a reconnect)
       if (!transcriptRef.current.length) {
         summarySentRef.current = false;
       }
-      // Track time since connect for contextual buttons
       setSecondsSinceConnect(0);
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
       connectTimeRef.current = setInterval(() => {
         setSecondsSinceConnect((prev) => (prev !== null ? prev + 1 : null));
       }, 1000);
+      // Immediately prompt the AI to start narrating
+      setTimeout(() => {
+        conversation.sendUserMessage("Please start telling the story now.");
+      }, 500);
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
@@ -539,15 +541,6 @@ const StoryMode = () => {
               exit={{ opacity: 0 }}
               className="flex flex-wrap justify-center gap-2 mb-4"
             >
-              {secondsSinceConnect !== null && secondsSinceConnect <= 10 && (
-                <button
-                  onClick={triggerStartStory}
-                  className="flex h-10 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-5 text-xs text-primary transition-all hover:bg-primary/20"
-                >
-                  <Play className="h-3 w-3" />
-                  Start Story
-                </button>
-              )}
               {secondsSinceConnect !== null && secondsSinceConnect > 10 && (
                 <>
                   {[3, 6, 9].map((m) => (

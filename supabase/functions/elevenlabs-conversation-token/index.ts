@@ -22,19 +22,6 @@ serve(async (req) => {
       throw new Error("ELEVENLABS_AGENT_ID is not configured");
     }
 
-    const { topic, length, age } = await req.json();
-    const childAge = age || 4;
-
-    const agePrompt = `You are a gentle bedtime storyteller for a ${childAge}-year-old child. Use simple vocabulary and sentence structures appropriate for age ${childAge}. ${
-      childAge <= 3
-        ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
-        : childAge <= 5
-          ? "Use short sentences, familiar words, and playful language. Avoid any scary or complex concepts."
-          : childAge <= 8
-            ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
-            : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
-    } The story theme is: ${topic || "a magical adventure"}. Story length: ${length === "test" ? "very short, about 10 seconds / 2-3 sentences only" : length || "medium"}.`;
-
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
       { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
@@ -48,7 +35,7 @@ serve(async (req) => {
 
     const { signed_url } = await response.json();
 
-    return new Response(JSON.stringify({ signed_url, overrides: { prompt: agePrompt } }), {
+    return new Response(JSON.stringify({ signed_url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

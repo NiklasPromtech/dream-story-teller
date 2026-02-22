@@ -152,7 +152,7 @@ const StoryMode = () => {
   }, [previousSummary, episodeCount, isNew, toast]);
 
   const ageLabel = age || 4;
-  const durationMinutes = length === "short" ? 3 : length === "long" ? 15 : 7;
+  const durationMinutes = length === "test" ? 0.17 : length === "short" ? 3 : length === "long" ? 15 : 7;
   const storyPrompt = `You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
     ageLabel <= 3
       ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
@@ -339,6 +339,12 @@ const StoryMode = () => {
             prompt: {
               prompt: storyPrompt,
             },
+            language: "en",
+          },
+          tts: {
+            stability: 0.6,
+            similarityBoost: 0.75,
+            speed: 0.95,
           },
         },
       });

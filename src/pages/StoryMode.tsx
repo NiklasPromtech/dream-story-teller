@@ -168,11 +168,11 @@ const StoryMode = () => {
     },
     onDisconnect: () => {
       console.log("Disconnected from storyteller");
-      // Only save summary if user intentionally stopped
       if (isStoppedRef.current) {
-        saveSummary();
+        saveSummary().then(() => {
+          navigate("/");
+        });
       } else if (hasStartedRef.current) {
-        // Unexpected disconnect — auto-retry without saving yet
         console.log("Unexpected disconnect, auto-retrying in 2s...");
         toast({
           title: "Reconnecting…",
@@ -215,11 +215,12 @@ const StoryMode = () => {
     toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
   }, [conversation, toast]);
 
-  const sayGoodnight = useCallback(() => {
-    conversation.sendUserMessage(
-      "It's time to sleep now. Please wrap up the story in the next 30 seconds with a gentle, soothing ending. Say goodnight and end the story."
-    );
-    toast({ title: "Goodnight 🌙", description: "The storyteller is wrapping up…" });
+  const sayGoodnight = useCallback(async () => {
+    toast({ title: "Goodnight 🌙", description: "Saving your story…" });
+    isStoppedRef.current = true;
+    setIsStopped(true);
+    await conversation.endSession();
+    // saveSummary will be called from onDisconnect, then navigate home
   }, [conversation, toast]);
 
   const sendTextMessage = useCallback(() => {
@@ -343,6 +344,7 @@ const StoryMode = () => {
           isStoppedRef.current = true;
           setIsStopped(true);
           conversation.endSession();
+          // onDisconnect will handle saveSummary + navigate
         }
       }, 15000);
     }

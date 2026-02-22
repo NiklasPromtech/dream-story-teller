@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Square, Home, Play, Send, MessageSquare, BookOpen } from "lucide-react";
+import { Moon, Square, Home, Play, Send, MessageSquare, BookOpen, SkipForward } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,6 +45,7 @@ const StoryMode = () => {
   const isStoppedRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSpeakingRef = useRef(false);
+  const nextEpisodeRef = useRef(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -170,7 +171,12 @@ const StoryMode = () => {
       console.log("Disconnected from storyteller");
       if (isStoppedRef.current) {
         saveSummary().then(() => {
-          navigate("/");
+          if (nextEpisodeRef.current) {
+            // Don't navigate home — we'll restart with new context
+            nextEpisodeRef.current = false;
+          } else {
+            navigate("/");
+          }
         });
       } else if (hasStartedRef.current) {
         console.log("Unexpected disconnect, auto-retrying in 2s...");
@@ -222,6 +228,42 @@ const StoryMode = () => {
     await conversation.endSession();
     // saveSummary will be called from onDisconnect, then navigate home
   }, [conversation, toast]);
+
+  const startNextEpisode = useCallback(async () => {
+    toast({ title: "Next episode ⏭️", description: "Saving this episode and starting the next…" });
+    nextEpisodeRef.current = true;
+    isStoppedRef.current = true;
+    setIsStopped(true);
+    await conversation.endSession();
+    // onDisconnect calls saveSummary; after it resolves, we poll and restart
+    const waitAndRestart = async () => {
+      let attempts = 0;
+      while (!summarySentRef.current && attempts < 30) {
+        await new Promise(r => setTimeout(r, 500));
+        attempts++;
+      }
+      const sid = currentStoryIdRef.current;
+      if (!sid) return;
+      const { data: story } = await supabase.from("stories").select("*").eq("id", sid).single();
+      if (!story) return;
+      // Navigate to same page with updated context — cleanest way to restart
+      navigate("/story", {
+        replace: true,
+        state: {
+          topic,
+          length,
+          age,
+          storyId: sid,
+          episodeCount: story.episode_count,
+          isNew: false,
+          previousSummary: story.story_summary,
+        },
+      });
+      // Force a full remount by reloading the route
+      window.location.reload();
+    };
+    waitAndRestart();
+  }, [conversation, toast, navigate, topic, length, age]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
@@ -520,6 +562,13 @@ const StoryMode = () => {
                       +{m} min
                     </button>
                   ))}
+                  <button
+                    onClick={startNextEpisode}
+                    className="flex h-10 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-5 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+                  >
+                    <SkipForward className="h-3 w-3" />
+                    Next Episode
+                  </button>
                   <button
                     onClick={sayGoodnight}
                     className="flex h-10 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-5 text-xs text-primary transition-all hover:bg-primary/20"

@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Square, Home, Play, Send, MessageSquare, BookOpen, SkipForward } from "lucide-react";
+import { Moon, Square, Home, Play, Send, MessageSquare, BookOpen, SkipForward, Mic } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -46,6 +46,7 @@ const StoryMode = () => {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSpeakingRef = useRef(false);
   const nextEpisodeRef = useRef(false);
+  const [micMuted, setMicMuted] = useState(true);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -150,6 +151,7 @@ const StoryMode = () => {
   }`;
 
   const conversation = useConversation({
+    micMuted,
     onConnect: () => {
       console.log("Connected to storyteller");
       setHasStarted(true);
@@ -453,7 +455,9 @@ const StoryMode = () => {
                 : isActive
                   ? conversation.isSpeaking
                     ? "Telling your story…"
-                    : "Listening…"
+                    : micMuted
+                      ? "Hold mic to speak"
+                      : "Listening…"
                   : "Connecting…"}
         </motion.p>
 
@@ -621,6 +625,21 @@ const StoryMode = () => {
                   aria-label="Toggle text input"
                 >
                   <MessageSquare className="h-5 w-5" />
+                </button>
+              )}
+              {isActive && (
+                <button
+                  onPointerDown={() => setMicMuted(false)}
+                  onPointerUp={() => setMicMuted(true)}
+                  onPointerLeave={() => setMicMuted(true)}
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all ${
+                    !micMuted
+                      ? "border-primary/50 bg-primary/10 text-primary scale-110"
+                      : "border-border/50 bg-card/50 text-muted-foreground/50 hover:border-primary/30 hover:text-muted-foreground"
+                  }`}
+                  aria-label="Hold to talk"
+                >
+                  <Mic className="h-5 w-5" />
                 </button>
               )}
               {isActive && (

@@ -1,57 +1,64 @@
 
+# Debug Dashboard (v2) for ElevenLabs Conversations
 
-# Mobile-First Design Polish
+## Overview
 
-## Current Issues (from screenshots)
+A new `/v2` page that gives you full transparency into every aspect of the ElevenLabs conversation lifecycle: what we send, what happens during, and what we get back.
 
-1. **Topic Detail page** - The layout works but could feel more immersive for a bedtime story app. The character cards, synopsis, and episodes are functional but a bit utilitarian.
+## What You'll See
 
-2. **Episode Prompt Dialog** - Fixed in last edit (now shows story name). But the dialog itself uses default desktop styling -- on mobile it could feel more native with bottom-sheet behavior.
+### 1. Pre-Session Panel (Configuration)
+- Editable fields for **all** override parameters sent to `startSession`:
+  - **Prompt** (full text area)
+  - **Language** (e.g. "en")
+  - **TTS Stability** (slider, 0-1)
+  - **TTS Similarity Boost** (slider, 0-1)
+  - **TTS Speed** (slider, 0.5-2.0)
+  - **Topic**, **Age**, **Length** selectors (same as home page)
+- A "Start Session" button that shows the exact JSON payload being sent before connecting
+- The signed URL response displayed once fetched
 
-3. **Home Page** - Story description gets truncated. The story cards could breathe more. The delete/play buttons feel a bit cramped side-by-side.
+### 2. Live Session Panel (During Conversation)
+- **Connection status** (connected/disconnected/connecting)
+- **isSpeaking** indicator
+- **Mute/Unmute toggle** (not push-to-talk, a simple toggle for easier debugging)
+- **Text input** for sending messages to the agent
+- **Live event log**: every `onMessage` event displayed in a scrollable log with timestamp, event type, and full payload (JSON)
+- **Conversation ID** displayed as soon as it's captured
+- **Elapsed time** counter
 
-4. **General** - No safe-area padding for notched phones (iPhone). The "Play Next Episode" button sits at the bottom of content but doesn't feel anchored like a proper mobile CTA.
+### 3. Post-Session Panel (After End)
+- "End Session" button with clear labeling
+- **Raw transcript** assembled from events
+- **Fetch Transcript** button to manually call the `fetch-transcript` edge function and display its response
+- **Summarize** button to manually trigger `summarize-story` and display the full response (summary, story_name, story_description, characters)
+- All API responses shown as formatted JSON
 
-## Planned Changes
+## Layout
 
-### 1. Safe area insets for notched phones
-Add `env(safe-area-inset-*)` padding to the app so content doesn't hide behind notches or home indicators on modern iPhones.
-
-### 2. Home Page (`Index.tsx`) improvements
-- Add bottom safe-area padding so the "Start Story" button clears the home indicator
-- Let the story description text wrap to 2 lines instead of truncating at 1
-- Slightly larger touch targets on the play/delete buttons
-
-### 3. Topic Detail Page (`TopicDetail.tsx`) improvements
-- Make the "Play Next Episode" button sticky at the bottom of the screen with a subtle gradient fade, so it's always reachable without scrolling to the very end
-- Add safe-area bottom padding
-- Slightly more vertical spacing between sections for easier thumb scrolling
-- For first-episode character cards, add staggered entrance animations for a more delightful reveal
-
-### 4. Episode Prompt Dialog (`EpisodePromptDialog.tsx`)
-- Switch from `Dialog` to `Drawer` (using the existing vaul-based drawer component) on mobile so it slides up from the bottom like a native action sheet -- much more natural on phones
-- Keep dialog behavior on desktop as fallback
-
-### 5. Global CSS (`index.css`)
-- Add viewport meta support for safe areas
-- Ensure smooth scrolling on iOS (`-webkit-overflow-scrolling: touch`)
+Single-page scrollable layout with three collapsible sections. No fancy animations -- plain, functional, developer-tool style using existing UI components (Card, Tabs, Textarea, Slider, Input, Button, ScrollArea).
 
 ## Technical Details
 
-### Files to modify
+### New Files
+- `src/pages/StoryModeV2.tsx` -- the debug dashboard page
 
-- **`index.html`**: Add `viewport-fit=cover` to the viewport meta tag for safe area support
-- **`src/index.css`**: Add safe-area padding utilities and smooth scrolling
-- **`src/pages/Index.tsx`**: 2-line description, bottom safe padding, slightly improved touch targets
-- **`src/pages/TopicDetail.tsx`**: Sticky bottom CTA with gradient fade, staggered character animations, safe-area padding, more breathing room
-- **`src/components/EpisodePromptDialog.tsx`**: Use `Drawer` component on mobile (via `useIsMobile` hook), keep `Dialog` on desktop
-- **`src/components/ui/drawer.tsx`**: Already exists (vaul), no changes needed
+### Modified Files
+- `src/App.tsx` -- add route `/v2` pointing to `StoryModeV2`
 
-### Sticky CTA approach (TopicDetail)
-The "Play Next Episode" button will be positioned with `sticky bottom-0` inside a wrapper with a gradient background (`bg-gradient-to-t from-background`) so it fades into the content above. This keeps it always accessible without covering content.
+### Architecture
+- Uses the same `useConversation` hook from `@elevenlabs/react`
+- Calls the same `elevenlabs-conversation-token` edge function for signed URL
+- Calls the same `fetch-transcript` and `summarize-story` edge functions
+- No new edge functions needed
+- All state visible on screen; no hidden logic
+- Event log captures every `onMessage` with `JSON.stringify(message)` and a timestamp
+- Story is saved to DB same as production flow, but each step is triggered manually with visible output
 
-### Drawer on mobile (EpisodePromptDialog)
-Use the existing `useIsMobile` hook. On mobile, render vaul's `Drawer` component instead of the radix `Dialog`. Same content inside, just a different container -- slides up from bottom, feels native, easy to dismiss with a swipe.
-
-### Staggered character animations
-For first-episode character cards, add incremental `transition={{ delay: index * 0.1 }}` to the existing `motion.div` so they cascade in one by one.
+### Key Differences from Production StoryMode
+- No auto-start -- you press "Start" manually
+- No auto-end on silence
+- No auto-reconnect on disconnect
+- Mute is a toggle, not push-to-talk
+- Every API call result is displayed as raw JSON
+- Manual "Save Episode" and "Fetch Transcript" buttons instead of automatic flow

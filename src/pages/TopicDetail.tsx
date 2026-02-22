@@ -214,18 +214,6 @@ const TopicDetail = () => {
             </div>
           )}
 
-          {/* Synopsis */}
-          {story.story_summary && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Synopsis</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{story.story_summary}</p>
-              </div>
-            </div>
-          )}
 
           {/* Episodes */}
           <div className="space-y-3">

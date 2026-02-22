@@ -12,7 +12,7 @@ const StoryMode = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { topic, length, age, storyId, episodeCount, isNew, previousSummary, episodeTheme } =
+  const { topic, length, age, storyId, episodeCount, isNew, previousSummary, episodeTheme, language } =
     (location.state as {
       topic: string;
       length: string;
@@ -22,7 +22,9 @@ const StoryMode = () => {
       isNew: boolean;
       previousSummary?: string;
       episodeTheme?: string;
+      language?: string;
     }) || {};
+  const storyLanguage = language || "en";
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [connectionFailed, setConnectionFailed] = useState(false);
@@ -156,7 +158,8 @@ const StoryMode = () => {
 
   const ageLabel = age || 4;
   const durationMinutes = length === "test" ? 0.17 : length === "short" ? 3 : length === "long" ? 15 : 7;
-  const storyPrompt = `You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
+  const languageInstruction = storyLanguage === "sv" ? "IMPORTANT: Tell the entire story in Swedish. All narration, dialogue, and goodnight messages must be in Swedish.\n\n" : "";
+  const storyPrompt = `${languageInstruction}You are a gentle, warm bedtime storyteller for a ${ageLabel}-year-old child. ${
     ageLabel <= 3
       ? "Use very short sentences, simple words, repetition, and animal sounds. Keep it extremely simple and soothing."
       : ageLabel <= 5
@@ -347,7 +350,7 @@ const StoryMode = () => {
             prompt: {
               prompt: storyPrompt,
             },
-            language: "en",
+            language: storyLanguage,
           },
         },
       });
@@ -553,16 +556,16 @@ const StoryMode = () => {
               <p className="text-xs text-muted-foreground/50 max-w-[250px] text-center">
                 {savingEpisode
                   ? "Saving your episode…"
-                  : "Resuming will start a new connection — the story may pick up from a slightly different point"}
+                  : "Your episode has been saved ✨"}
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={resumeConversation}
+                  onClick={() => startNextEpisode(length)}
                   disabled={savingEpisode}
                   className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  <Play className="h-4 w-4" />
-                  Resume
+                  <SkipForward className="h-4 w-4" />
+                  Next Episode
                 </button>
                 <button
                   onClick={goHome}

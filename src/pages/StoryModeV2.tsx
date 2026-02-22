@@ -29,6 +29,7 @@ const StoryModeV2 = () => {
   const [topic, setTopic] = useState("a magical adventure");
   const [age, setAge] = useState(4);
   const [length, setLength] = useState("short");
+  const [enableTtsOverrides, setEnableTtsOverrides] = useState(false);
 
   // -- Session state --
   const [isConnecting, setIsConnecting] = useState(false);
@@ -137,17 +138,19 @@ const StoryModeV2 = () => {
       setSignedUrlResponse(JSON.stringify(data, null, 2));
       addEvent("SIGNED_URL_RECEIVED", { signed_url: data.signed_url.slice(0, 80) + "..." });
 
-      const overrides = {
+      const overrides: any = {
         agent: {
           prompt: { prompt },
           language,
         },
-        tts: {
+      };
+      if (enableTtsOverrides) {
+        overrides.tts = {
           stability,
           similarityBoost,
           speed,
-        },
-      };
+        };
+      }
 
       const payload = { signedUrl: "...", overrides };
       setStartPayload(JSON.stringify(payload, null, 2));
@@ -162,7 +165,7 @@ const StoryModeV2 = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [conversation, prompt, language, stability, similarityBoost, speed, topic, length, age, addEvent]);
+  }, [conversation, prompt, language, stability, similarityBoost, speed, enableTtsOverrides, topic, length, age, addEvent]);
 
   const endSession = useCallback(async () => {
     try {
@@ -293,20 +296,33 @@ const StoryModeV2 = () => {
                 <Input value={language} onChange={(e) => setLanguage(e.target.value)} className="w-32" />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>TTS Stability: {stability.toFixed(2)}</Label>
-                  <Slider value={[stability]} onValueChange={([v]) => setStability(v)} min={0} max={1} step={0.01} />
-                </div>
-                <div>
-                  <Label>TTS Similarity Boost: {similarityBoost.toFixed(2)}</Label>
-                  <Slider value={[similarityBoost]} onValueChange={([v]) => setSimilarityBoost(v)} min={0} max={1} step={0.01} />
-                </div>
-                <div>
-                  <Label>TTS Speed: {speed.toFixed(2)}</Label>
-                  <Slider value={[speed]} onValueChange={([v]) => setSpeed(v)} min={0.5} max={2.0} step={0.05} />
-                </div>
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  id="enableTts"
+                  checked={enableTtsOverrides}
+                  onChange={(e) => setEnableTtsOverrides(e.target.checked)}
+                />
+                <Label htmlFor="enableTts" className="text-xs text-muted-foreground cursor-pointer">
+                  Enable TTS overrides (must be allowed in ElevenLabs agent config)
+                </Label>
               </div>
+              {enableTtsOverrides && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>TTS Stability: {stability.toFixed(2)}</Label>
+                    <Slider value={[stability]} onValueChange={([v]) => setStability(v)} min={0} max={1} step={0.01} />
+                  </div>
+                  <div>
+                    <Label>TTS Similarity Boost: {similarityBoost.toFixed(2)}</Label>
+                    <Slider value={[similarityBoost]} onValueChange={([v]) => setSimilarityBoost(v)} min={0} max={1} step={0.01} />
+                  </div>
+                  <div>
+                    <Label>TTS Speed: {speed.toFixed(2)}</Label>
+                    <Slider value={[speed]} onValueChange={([v]) => setSpeed(v)} min={0.5} max={2.0} step={0.05} />
+                  </div>
+                </div>
+              )}
 
               <Button onClick={startSession} disabled={isConnecting || isConnected} className="gap-2">
                 <Play className="h-4 w-4" />

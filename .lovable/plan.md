@@ -1,64 +1,41 @@
 
-# Debug Dashboard (v2) for ElevenLabs Conversations
 
-## Overview
+# Display Conversation ID in v1 and Save It With Episode Data
 
-A new `/v2` page that gives you full transparency into every aspect of the ElevenLabs conversation lifecycle: what we send, what happens during, and what we get back.
+## What Changes
 
-## What You'll See
+### 1. Show conversation ID on screen (v1 StoryMode)
+A small, unobtrusive bar at the bottom of the story screen that displays the `conv_` ID as soon as it's captured. This gives you immediate confirmation the session is properly connected and tracked.
 
-### 1. Pre-Session Panel (Configuration)
-- Editable fields for **all** override parameters sent to `startSession`:
-  - **Prompt** (full text area)
-  - **Language** (e.g. "en")
-  - **TTS Stability** (slider, 0-1)
-  - **TTS Similarity Boost** (slider, 0-1)
-  - **TTS Speed** (slider, 0.5-2.0)
-  - **Topic**, **Age**, **Length** selectors (same as home page)
-- A "Start Session" button that shows the exact JSON payload being sent before connecting
-- The signed URL response displayed once fetched
+### 2. Save conversation ID with episode data
+Store the `conversationId` in the `story_episodes` table so you can look up any episode's full conversation in ElevenLabs later.
 
-### 2. Live Session Panel (During Conversation)
-- **Connection status** (connected/disconnected/connecting)
-- **isSpeaking** indicator
-- **Mute/Unmute toggle** (not push-to-talk, a simple toggle for easier debugging)
-- **Text input** for sending messages to the agent
-- **Live event log**: every `onMessage` event displayed in a scrollable log with timestamp, event type, and full payload (JSON)
-- **Conversation ID** displayed as soon as it's captured
-- **Elapsed time** counter
-
-### 3. Post-Session Panel (After End)
-- "End Session" button with clear labeling
-- **Raw transcript** assembled from events
-- **Fetch Transcript** button to manually call the `fetch-transcript` edge function and display its response
-- **Summarize** button to manually trigger `summarize-story` and display the full response (summary, story_name, story_description, characters)
-- All API responses shown as formatted JSON
-
-## Layout
-
-Single-page scrollable layout with three collapsible sections. No fancy animations -- plain, functional, developer-tool style using existing UI components (Card, Tabs, Textarea, Slider, Input, Button, ScrollArea).
+### 3. Fix TTS overrides causing instant disconnect
+Remove the `tts` overrides (`stability`, `similarityBoost`, `speed`) from v1's `startSession` call -- same fix we discovered in v2.
 
 ## Technical Details
 
-### New Files
-- `src/pages/StoryModeV2.tsx` -- the debug dashboard page
+### Database Migration
+Add a `conversation_id` text column to `story_episodes`:
 
-### Modified Files
-- `src/App.tsx` -- add route `/v2` pointing to `StoryModeV2`
+```sql
+ALTER TABLE story_episodes ADD COLUMN conversation_id text;
+```
 
-### Architecture
-- Uses the same `useConversation` hook from `@elevenlabs/react`
-- Calls the same `elevenlabs-conversation-token` edge function for signed URL
-- Calls the same `fetch-transcript` and `summarize-story` edge functions
-- No new edge functions needed
-- All state visible on screen; no hidden logic
-- Event log captures every `onMessage` with `JSON.stringify(message)` and a timestamp
-- Story is saved to DB same as production flow, but each step is triggered manually with visible output
+### `src/pages/StoryMode.tsx`
+1. **Remove TTS overrides** from `startSession` (lines 344-349) -- keeps only `agent` overrides which are allowed.
+2. **Add state** for `conversationId` (currently only stored in a ref, need a reactive state to display it).
+3. **Display conversation ID** at the bottom of the screen -- a small fixed bar showing `conv_XXXX` when available, hidden otherwise.
+4. **Pass `conversationId` to `summarize-story`** so it gets saved with the episode.
 
-### Key Differences from Production StoryMode
-- No auto-start -- you press "Start" manually
-- No auto-end on silence
-- No auto-reconnect on disconnect
-- Mute is a toggle, not push-to-talk
-- Every API call result is displayed as raw JSON
-- Manual "Save Episode" and "Fetch Transcript" buttons instead of automatic flow
+### `supabase/functions/summarize-story/index.ts`
+Accept the optional `conversationId` field from the request body and include it in the `story_episodes` insert.
+
+### Flow
+1. Session connects
+2. `conversation_initiation_metadata` message arrives with `conversation_id`
+3. ID is stored in ref (for API calls) AND state (for display)
+4. Bottom bar shows `conv_XXXX`
+5. When session ends, `conversationId` is sent alongside the transcript to `summarize-story`
+6. Edge function saves it into `story_episodes.conversation_id`
+

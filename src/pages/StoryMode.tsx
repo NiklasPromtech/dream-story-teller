@@ -229,13 +229,12 @@ const StoryMode = () => {
     // saveSummary will be called from onDisconnect, then navigate home
   }, [conversation, toast]);
 
-  const startNextEpisode = useCallback(async () => {
+  const startNextEpisode = useCallback(async (nextLength: string) => {
     toast({ title: "Next episode ⏭️", description: "Saving this episode and starting the next…" });
     nextEpisodeRef.current = true;
     isStoppedRef.current = true;
     setIsStopped(true);
     await conversation.endSession();
-    // onDisconnect calls saveSummary; after it resolves, we poll and restart
     const waitAndRestart = async () => {
       let attempts = 0;
       while (!summarySentRef.current && attempts < 30) {
@@ -246,12 +245,11 @@ const StoryMode = () => {
       if (!sid) return;
       const { data: story } = await supabase.from("stories").select("*").eq("id", sid).single();
       if (!story) return;
-      // Navigate to same page with updated context — cleanest way to restart
       navigate("/story", {
         replace: true,
         state: {
           topic,
-          length,
+          length: nextLength,
           age,
           storyId: sid,
           episodeCount: story.episode_count,
@@ -259,11 +257,10 @@ const StoryMode = () => {
           previousSummary: story.story_summary,
         },
       });
-      // Force a full remount by reloading the route
       window.location.reload();
     };
     waitAndRestart();
-  }, [conversation, toast, navigate, topic, length, age]);
+  }, [conversation, toast, navigate, topic, age]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
@@ -562,13 +559,20 @@ const StoryMode = () => {
                       +{m} min
                     </button>
                   ))}
-                  <button
-                    onClick={startNextEpisode}
-                    className="flex h-10 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-5 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
-                  >
-                    <SkipForward className="h-3 w-3" />
-                    Next Episode
-                  </button>
+                  {[
+                    { label: "3m", value: "short" },
+                    { label: "7m", value: "medium" },
+                    { label: "15m", value: "long" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => startNextEpisode(opt.value)}
+                      className="flex h-10 items-center gap-1.5 rounded-full border border-border/50 bg-card/50 px-4 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+                    >
+                      <SkipForward className="h-3 w-3" />
+                      Next {opt.label}
+                    </button>
+                  ))}
                   <button
                     onClick={sayGoodnight}
                     className="flex h-10 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-5 text-xs text-primary transition-all hover:bg-primary/20"

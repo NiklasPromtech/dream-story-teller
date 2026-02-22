@@ -172,17 +172,8 @@ const StoryMode = () => {
       }, 500);
     },
     onDisconnect: () => {
-      console.log("Disconnected from storyteller");
-      if (isStoppedRef.current) {
-        saveSummary().then(() => {
-          if (nextEpisodeRef.current) {
-            // Don't navigate home — we'll restart with new context
-            nextEpisodeRef.current = false;
-          } else {
-            navigate("/");
-          }
-        });
-      } else if (hasStartedRef.current) {
+      console.log("Disconnected from storyteller, isStoppedRef:", isStoppedRef.current);
+      if (!isStoppedRef.current && hasStartedRef.current) {
         console.log("Unexpected disconnect, auto-retrying in 2s...");
         toast({
           title: "Reconnecting…",
@@ -229,42 +220,37 @@ const StoryMode = () => {
     toast({ title: "Goodnight 🌙", description: "Saving your story…" });
     isStoppedRef.current = true;
     setIsStopped(true);
-    await conversation.endSession();
-    // saveSummary will be called from onDisconnect, then navigate home
-  }, [conversation, toast]);
+    try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
+    console.log("sayGoodnight: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current);
+    await saveSummary();
+    navigate("/");
+  }, [conversation, toast, saveSummary, navigate]);
 
   const startNextEpisode = useCallback(async (nextLength: string) => {
     toast({ title: "Next episode ⏭️", description: "Saving this episode and starting the next…" });
-    nextEpisodeRef.current = true;
     isStoppedRef.current = true;
     setIsStopped(true);
-    await conversation.endSession();
-    const waitAndRestart = async () => {
-      let attempts = 0;
-      while (!summarySentRef.current && attempts < 30) {
-        await new Promise(r => setTimeout(r, 500));
-        attempts++;
-      }
-      const sid = currentStoryIdRef.current;
-      if (!sid) return;
-      const { data: story } = await supabase.from("stories").select("*").eq("id", sid).single();
-      if (!story) return;
-      navigate("/story", {
-        replace: true,
-        state: {
-          topic,
-          length: nextLength,
-          age,
-          storyId: sid,
-          episodeCount: story.episode_count,
-          isNew: false,
-          previousSummary: story.story_summary,
-        },
-      });
-      window.location.reload();
-    };
-    waitAndRestart();
-  }, [conversation, toast, navigate, topic, age]);
+    try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
+    console.log("startNextEpisode: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current);
+    await saveSummary();
+    const sid = currentStoryIdRef.current;
+    if (!sid) { navigate("/"); return; }
+    const { data: story } = await supabase.from("stories").select("*").eq("id", sid).single();
+    if (!story) { navigate("/"); return; }
+    navigate("/story", {
+      replace: true,
+      state: {
+        topic,
+        length: nextLength,
+        age,
+        storyId: sid,
+        episodeCount: story.episode_count,
+        isNew: false,
+        previousSummary: story.story_summary,
+      },
+    });
+    window.location.reload();
+  }, [conversation, toast, navigate, topic, age, saveSummary]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
@@ -381,13 +367,14 @@ const StoryMode = () => {
       secondsSinceConnect > 30
     ) {
       // AI stopped speaking after having spoken — wait 15s of silence then auto-end
-      silenceTimerRef.current = setTimeout(() => {
+      silenceTimerRef.current = setTimeout(async () => {
         if (!isStoppedRef.current && !conversation.isSpeaking) {
           console.log("Auto-ending session after prolonged silence (story finished)");
           isStoppedRef.current = true;
           setIsStopped(true);
-          conversation.endSession();
-          // onDisconnect will handle saveSummary + navigate
+          try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
+          await saveSummary();
+          navigate("/");
         }
       }, 15000);
     }

@@ -33,7 +33,7 @@ serve(async (req) => {
           : childAge <= 8
             ? "You can use moderately complex sentences and introduce some imaginative vocabulary, but keep things age-appropriate and calming."
             : "You can use richer vocabulary and more detailed storytelling, but keep the tone warm and bedtime-appropriate."
-    } The story theme is: ${topic || "a magical adventure"}. Story length: ${length || "medium"}.`;
+    } The story theme is: ${topic || "a magical adventure"}. Story length: ${length === "test" ? "very short, about 10 seconds / 2-3 sentences only" : length || "medium"}.`;
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,

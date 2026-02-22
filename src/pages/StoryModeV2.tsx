@@ -87,8 +87,8 @@ const StoryModeV2 = () => {
         setElapsedSeconds((prev) => (prev !== null ? prev + 1 : 0));
       }, 1000);
     },
-    onDisconnect: () => {
-      addEvent("DISCONNECTED", {});
+    onDisconnect: (details: any) => {
+      addEvent("DISCONNECTED", details || {});
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -96,6 +96,9 @@ const StoryModeV2 = () => {
     },
     onError: (error) => {
       addEvent("ERROR", { error: String(error) });
+    },
+    onDebug: (info: any) => {
+      addEvent("DEBUG", info);
     },
     onMessage: (message: any) => {
       addEvent(message.type || "UNKNOWN", message);

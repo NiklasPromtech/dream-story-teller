@@ -38,6 +38,12 @@ serve(async (req) => {
       if (!response.ok) {
         const text = await response.text();
         console.error(`ElevenLabs API error (attempt ${attempts}):`, response.status, text);
+        // Don't retry on 404 — conversation doesn't exist
+        if (response.status === 404) {
+          return new Response(JSON.stringify({ transcript: "", status: "not_found" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         if (attempts < maxAttempts) {
           await new Promise(r => setTimeout(r, 3000));
           continue;

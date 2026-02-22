@@ -26,6 +26,7 @@ const TOPICS = [
 ];
 
 const LENGTHS = [
+  { label: "Test", minutes: "~10s", value: "test" },
   { label: "Short", minutes: "~3 min", value: "short" },
   { label: "Medium", minutes: "~7 min", value: "medium" },
   { label: "Long", minutes: "~15 min", value: "long" },

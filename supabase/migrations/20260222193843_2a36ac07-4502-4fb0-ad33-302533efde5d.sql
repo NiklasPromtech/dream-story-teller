@@ -1,0 +1,1 @@
+ALTER TABLE story_episodes ADD COLUMN conversation_id text;

@@ -56,6 +56,7 @@ export type Database = {
       story_episodes: {
         Row: {
           characters: Json | null
+          conversation_id: string | null
           created_at: string
           episode_number: number
           id: string
@@ -66,6 +67,7 @@ export type Database = {
         }
         Insert: {
           characters?: Json | null
+          conversation_id?: string | null
           created_at?: string
           episode_number?: number
           id?: string
@@ -76,6 +78,7 @@ export type Database = {
         }
         Update: {
           characters?: Json | null
+          conversation_id?: string | null
           created_at?: string
           episode_number?: number
           id?: string

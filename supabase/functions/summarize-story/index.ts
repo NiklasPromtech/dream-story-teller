@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { storyId, transcript, previousSummary, episodeNumber } = await req.json();
+    const { storyId, transcript, previousSummary, episodeNumber, conversationId } = await req.json();
 
     if (!storyId || !transcript) {
       throw new Error("storyId and transcript are required");
@@ -108,6 +108,7 @@ Focus on:
         summary: parsed.summary,
         characters: parsed.characters,
         transcript,
+        conversation_id: conversationId || null,
       });
 
     if (episodeError) {

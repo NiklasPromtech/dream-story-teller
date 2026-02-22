@@ -47,6 +47,7 @@ const StoryMode = () => {
   const wasSpeakingRef = useRef(false);
   const nextEpisodeRef = useRef(false);
   const conversationIdRef = useRef<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [micMuted, setMicMuted] = useState(true);
 
   // Fade-to-black entrance: brief black overlay then reveal
@@ -135,6 +136,7 @@ const StoryMode = () => {
           transcript, 
           previousSummary: previousSummary || "",
           episodeNumber: episodeCount ? (isNew ? 1 : (episodeCount + 1)) : 1,
+          conversationId: conversationIdRef.current,
         },
       });
       if (error) {
@@ -224,6 +226,7 @@ const StoryMode = () => {
         if (convId) {
           console.log("Captured conversationId:", convId);
           conversationIdRef.current = convId;
+          setConversationId(convId);
         }
       }
       if (message.type === "agent_response") {
@@ -340,11 +343,6 @@ const StoryMode = () => {
               prompt: storyPrompt,
             },
             language: "en",
-          },
-          tts: {
-            stability: 0.6,
-            similarityBoost: 0.75,
-            speed: 0.95,
           },
         },
       });
@@ -712,6 +710,15 @@ const StoryMode = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Conversation ID bar */}
+      {conversationId && (
+        <div className="fixed bottom-2 left-0 right-0 flex justify-center pointer-events-none z-40">
+          <span className="text-[10px] text-muted-foreground/30 font-mono select-all pointer-events-auto">
+            {conversationId}
+          </span>
+        </div>
+      )}
     </>
   );
 };

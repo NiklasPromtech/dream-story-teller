@@ -46,6 +46,7 @@ const StoryMode = () => {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSpeakingRef = useRef(false);
   const nextEpisodeRef = useRef(false);
+  const conversationIdRef = useRef<string | null>(null);
   const [micMuted, setMicMuted] = useState(true);
 
   // Fade-to-black entrance: brief black overlay then reveal
@@ -99,8 +100,28 @@ const StoryMode = () => {
   const saveSummary = useCallback(async () => {
     if (summarySentRef.current) return;
     const sid = currentStoryIdRef.current;
-    // Snapshot transcript immediately so reconnect can't wipe it
-    const transcript = transcriptRef.current.join("\n");
+    
+    // Try local transcript first
+    let transcript = transcriptRef.current.join("\n");
+    
+    // If local transcript is empty, fetch from ElevenLabs API
+    if (!transcript.trim() && conversationIdRef.current) {
+      console.log("Local transcript empty, fetching from ElevenLabs API. conversationId:", conversationIdRef.current);
+      try {
+        const { data, error } = await supabase.functions.invoke("fetch-transcript", {
+          body: { conversationId: conversationIdRef.current },
+        });
+        if (error) {
+          console.error("fetch-transcript error:", error);
+        } else if (data?.transcript) {
+          transcript = data.transcript;
+          console.log("Fetched transcript from API, length:", transcript.length);
+        }
+      } catch (err) {
+        console.error("Failed to fetch transcript:", err);
+      }
+    }
+    
     if (!sid || !transcript.trim()) {
       console.log("saveSummary skipped: no storyId or transcript", { sid, transcriptLen: transcript.length });
       return;
@@ -197,12 +218,31 @@ const StoryMode = () => {
       });
     },
     onMessage: (message: any) => {
+      // Capture conversation ID from initiation metadata
+      if (message.type === "conversation_initiation_metadata") {
+        const convId = message.conversation_initiation_metadata_event?.conversation_id;
+        if (convId) {
+          console.log("Captured conversationId:", convId);
+          conversationIdRef.current = convId;
+        }
+      }
       if (message.type === "agent_response") {
         const text = message.agent_response_event?.agent_response || "";
-        transcriptRef.current.push(`Storyteller: ${text}`);
-        setLiveTranscript((prev) => [...prev, text]);
+        if (text.trim()) {
+          transcriptRef.current.push(`Storyteller: ${text}`);
+          setLiveTranscript((prev) => [...prev, text]);
+        }
+      } else if (message.type === "agent_response_correction") {
+        const text = message.agent_response_correction_event?.corrected_agent_response || "";
+        if (text.trim()) {
+          transcriptRef.current.push(`Storyteller: ${text}`);
+          setLiveTranscript((prev) => [...prev, text]);
+        }
       } else if (message.type === "user_transcript") {
-        transcriptRef.current.push(`Child: ${message.user_transcription_event?.user_transcript || ""}`);
+        const text = message.user_transcription_event?.user_transcript || "";
+        if (text.trim()) {
+          transcriptRef.current.push(`Child: ${text}`);
+        }
       }
     },
   });
@@ -220,8 +260,13 @@ const StoryMode = () => {
     toast({ title: "Goodnight 🌙", description: "Saving your story…" });
     isStoppedRef.current = true;
     setIsStopped(true);
+    // Capture conversation ID before ending session
+    try {
+      const convId = conversation.getId();
+      if (convId) conversationIdRef.current = convId;
+    } catch (e) { /* getId may not be available */ }
     try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
-    console.log("sayGoodnight: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current);
+    console.log("sayGoodnight: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current, "conversationId:", conversationIdRef.current);
     await saveSummary();
     navigate("/");
   }, [conversation, toast, saveSummary, navigate]);
@@ -230,8 +275,12 @@ const StoryMode = () => {
     toast({ title: "Next episode ⏭️", description: "Saving this episode and starting the next…" });
     isStoppedRef.current = true;
     setIsStopped(true);
+    try {
+      const convId = conversation.getId();
+      if (convId) conversationIdRef.current = convId;
+    } catch (e) { /* getId may not be available */ }
     try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
-    console.log("startNextEpisode: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current);
+    console.log("startNextEpisode: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current, "conversationId:", conversationIdRef.current);
     await saveSummary();
     const sid = currentStoryIdRef.current;
     if (!sid) { navigate("/"); return; }
@@ -372,6 +421,10 @@ const StoryMode = () => {
           console.log("Auto-ending session after prolonged silence (story finished)");
           isStoppedRef.current = true;
           setIsStopped(true);
+          try {
+            const convId = conversation.getId();
+            if (convId) conversationIdRef.current = convId;
+          } catch (e) { /* getId may not be available */ }
           try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
           await saveSummary();
           navigate("/");

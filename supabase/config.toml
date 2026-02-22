@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.summarize-story]
 verify_jwt = false
+
+[functions.fetch-transcript]
+verify_jwt = false

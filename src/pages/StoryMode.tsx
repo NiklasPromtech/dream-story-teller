@@ -49,6 +49,7 @@ const StoryMode = () => {
   const conversationIdRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [micMuted, setMicMuted] = useState(true);
+  const [savingEpisode, setSavingEpisode] = useState(false);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -263,6 +264,7 @@ const StoryMode = () => {
     toast({ title: "Goodnight 🌙", description: "Saving your story…" });
     isStoppedRef.current = true;
     setIsStopped(true);
+    setSavingEpisode(true);
     // Capture conversation ID before ending session
     try {
       const convId = conversation.getId();
@@ -270,7 +272,10 @@ const StoryMode = () => {
     } catch (e) { /* getId may not be available */ }
     try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
     console.log("sayGoodnight: calling saveSummary directly, transcript lines:", transcriptRef.current.length, "storyId:", currentStoryIdRef.current, "conversationId:", conversationIdRef.current);
-    await saveSummary();
+    // Detach save from component lifecycle — runs even if user navigates away
+    const savePromise = saveSummary();
+    savePromise.finally(() => setSavingEpisode(false));
+    await savePromise;
     navigate("/");
   }, [conversation, toast, saveSummary, navigate]);
 
@@ -425,12 +430,15 @@ const StoryMode = () => {
           console.log("Auto-ending session after prolonged silence (story finished)");
           isStoppedRef.current = true;
           setIsStopped(true);
+          setSavingEpisode(true);
           try {
             const convId = conversation.getId();
             if (convId) conversationIdRef.current = convId;
           } catch (e) { /* getId may not be available */ }
           try { await conversation.endSession(); } catch (e) { console.error("endSession error:", e); }
-          await saveSummary();
+          const savePromise = saveSummary();
+          savePromise.finally(() => setSavingEpisode(false));
+          await savePromise;
           navigate("/");
         }
       }, 15000);
@@ -543,22 +551,34 @@ const StoryMode = () => {
           {isStopped && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4">
               <p className="text-xs text-muted-foreground/50 max-w-[250px] text-center">
-                Resuming will start a new connection — the story may pick up from a slightly different point
+                {savingEpisode
+                  ? "Saving your episode…"
+                  : "Resuming will start a new connection — the story may pick up from a slightly different point"}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={resumeConversation}
-                  className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20 active:scale-95"
+                  disabled={savingEpisode}
+                  className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                 >
                   <Play className="h-4 w-4" />
                   Resume
                 </button>
                 <button
                   onClick={goHome}
-                  className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95"
+                  disabled={savingEpisode}
+                  className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  <Home className="h-4 w-4" />
-                  Back
+                  {savingEpisode ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full"
+                    />
+                  ) : (
+                    <Home className="h-4 w-4" />
+                  )}
+                  {savingEpisode ? "Saving…" : "Back"}
                 </button>
               </div>
             </motion.div>

@@ -79,12 +79,12 @@ const TopicDetail = () => {
     return Array.from(map.values()).sort((a, b) => b.episodes.length - a.episodes.length);
   })();
 
-  const handlePlayNext = (episodeTheme?: string) => {
+  const handlePlayNext = (episodeTheme?: string, episodeLength?: string) => {
     if (!story) return;
     navigate("/story", {
       state: {
         topic: story.topic,
-        length: story.length,
+        length: episodeLength || story.length,
         age: story.age,
         storyId: story.id,
         episodeCount: story.episode_count,
@@ -291,12 +291,13 @@ const TopicDetail = () => {
       <EpisodePromptDialog
         open={showEpisodePrompt}
         onOpenChange={setShowEpisodePrompt}
-        onStart={(theme) => {
+        onStart={(theme, episodeLength) => {
           setShowEpisodePrompt(false);
-          handlePlayNext(theme);
+          handlePlayNext(theme, episodeLength);
         }}
         topicName={story.topic}
         storyName={story.story_name}
+        currentLength={story.length}
       />
     </div>
   );

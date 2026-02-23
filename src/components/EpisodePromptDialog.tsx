@@ -21,22 +21,30 @@ import { useIsMobile } from "@/hooks/use-mobile";
 type EpisodePromptDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStart: (theme?: string) => void;
+  onStart: (theme?: string, length?: string) => void;
   topicName: string;
   storyName?: string | null;
+  currentLength?: string;
 };
 
-const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName, storyName }: EpisodePromptDialogProps) => {
+const DURATION_OPTIONS = [
+  { value: "short", label: "Short", desc: "~3 min" },
+  { value: "medium", label: "Medium", desc: "~7 min" },
+  { value: "long", label: "Long", desc: "~15 min" },
+];
+
+const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName, storyName, currentLength }: EpisodePromptDialogProps) => {
   const [theme, setTheme] = useState("");
+  const [selectedLength, setSelectedLength] = useState(currentLength || "medium");
   const isMobile = useIsMobile();
 
   const handleStart = () => {
-    onStart(theme.trim() || undefined);
+    onStart(theme.trim() || undefined, selectedLength);
     setTheme("");
   };
 
   const handleJustContinue = () => {
-    onStart(undefined);
+    onStart(undefined, selectedLength);
     setTheme("");
   };
 
@@ -45,6 +53,24 @@ const EpisodePromptDialog = ({ open, onOpenChange, onStart, topicName, storyName
 
   const content = (
     <div className="space-y-4 pt-2 px-1">
+      {/* Duration picker */}
+      <div className="flex gap-2">
+        {DURATION_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setSelectedLength(opt.value)}
+            className={`flex-1 rounded-lg border px-3 py-2.5 text-center transition-all ${
+              selectedLength === opt.value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:border-primary/30"
+            }`}
+          >
+            <span className="block text-sm font-medium">{opt.label}</span>
+            <span className="block text-xs opacity-60">{opt.desc}</span>
+          </button>
+        ))}
+      </div>
+
       <Textarea
         placeholder="e.g., they go on a camping trip"
         value={theme}

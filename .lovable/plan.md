@@ -1,36 +1,79 @@
 
+# Extreme Logging + Fix Reconnect Starting New Conversation
 
-# Swedish Language Support + Replace Resume with Next Episode
+## Problem 1: Reconnect starts a new conversation
+When the ElevenLabs WebSocket drops unexpectedly, `onDisconnect` calls `startConversation()`, which requests a **new signed URL** and creates an entirely new session. The previous `conversationId` is lost, the agent has no memory, and the story restarts from scratch.
 
-## Changes
+Unfortunately, ElevenLabs does not support reconnecting to an existing conversation -- once a WebSocket drops, that session is gone. So the best we can do is:
+- Pass the **same prompt with previous context** so the new session continues where the old one left off
+- Log extensively so we can diagnose *why* disconnects happen
 
-### 1. Add Swedish language support
-Pass `language: "sv"` instead of `"en"` in the `startSession` overrides. Since the app doesn't yet have a language selector, we'll add a `language` field to the `location.state` so the calling page can specify it. Default remains `"en"`. The story prompt will also be updated to instruct the agent to tell the story in Swedish when `language === "sv"`.
+## Problem 2: Insufficient logging
+We need detailed logging at every step to diagnose the 1m28s disconnect.
 
-### 2. Replace "Resume" button with "Next Episode" after Goodnight
-Remove the Resume button from the post-goodnight screen. Replace it with a "Next Episode" button that saves the current episode and starts a new one (reusing the existing `startNextEpisode` logic). The "Back" button stays as-is (disabled while saving).
+## Changes (all in `src/pages/StoryMode.tsx`)
 
-The post-goodnight screen will show:
-- "Saving your episode..." message while save is in progress
-- Once saved: "Next Episode" button + "Back" button
+### 1. Add extreme logging throughout
 
-## Technical Details
+Add `console.log` / `console.warn` at these points:
+- `onConnect`: log conversation status, timestamp, whether this is a reconnect
+- `onDisconnect`: log the disconnect details object, elapsed seconds, `isStoppedRef` value, `hasStartedRef` value
+- `onError`: log full error object
+- `onMessage`: log every message type and key fields (not full payload to avoid noise)
+- `startConversation`: log when starting, whether it's a reconnect attempt, the signed URL (truncated)
+- `sayGoodnight` / auto-silence: log each step
+- Silence timer: log when silence detection starts, when it fires
+- `isSpeaking` changes: log transitions
 
-### `src/pages/StoryMode.tsx`
+### 2. Improve reconnect to carry context forward
 
-1. **Language from location state**: Add `language` to the destructured `location.state` (defaulting to `"en"`). Pass it into `startSession` overrides.
+When auto-reconnecting after an unexpected disconnect:
+- Capture the current transcript so far (already in `transcriptRef.current`)
+- On the reconnect call to `startConversation`, build a prompt that includes a "RECONNECTION CONTEXT" section with the transcript so far, telling the agent to **continue from where it left off** without repeating
+- Track reconnect count to prevent infinite reconnect loops (max 3 attempts)
+- Log the reconnect attempt number
 
-2. **Story prompt**: When `language === "sv"`, prepend "Tell the story in Swedish." to the prompt.
+### 3. Add reconnect attempt counter
 
-3. **Remove Resume button** from the `isStopped` section (lines 559-566).
+- New ref: `reconnectCountRef = useRef(0)`
+- Reset to 0 on successful `onConnect`
+- Increment on each reconnect attempt in `onDisconnect`
+- Stop retrying after 3 attempts and show an error toast instead
 
-4. **Add "Next Episode" button** in its place -- calls `startNextEpisode` with the current `length` value. Disabled while `savingEpisode` is true.
+### Technical detail
 
-5. **Update helper text** -- remove the "Resuming will start a new connection" message, replace with something like "Your episode has been saved" once saving completes.
+In `onDisconnect` (line 201-215), change from:
+```
+setTimeout(() => {
+  if (!isStoppedRef.current) {
+    savedRef.current = true;
+    startConversation();
+  }
+}, 2000);
+```
+to:
+```
+reconnectCountRef.current += 1;
+const attempt = reconnectCountRef.current;
+console.warn(`[RECONNECT] Attempt ${attempt}/3, elapsed: ${secondsSinceConnect}s, transcript lines: ${transcriptRef.current.length}`);
+if (attempt > 3) {
+  console.error("[RECONNECT] Max attempts reached, giving up");
+  // show error, stop
+  return;
+}
+setTimeout(() => {
+  if (!isStoppedRef.current) {
+    savedRef.current = true;
+    startConversation(); // will use updated storyPrompt with reconnection context
+  }
+}, 2000);
+```
 
-### Calling pages (Index.tsx, TopicDetail.tsx)
-No changes needed immediately -- they'll default to `"en"`. When you want to test Swedish, you can pass `language: "sv"` in the navigation state.
+In `startConversation`, when `reconnectCountRef.current > 0`, append reconnection context to the prompt:
+```
+const reconnectContext = reconnectCountRef.current > 0 && transcriptRef.current.length > 0
+  ? `\n\nRECONNECTION: The connection was interrupted. Here is the story so far — continue EXACTLY from where you left off, do NOT repeat anything:\n${transcriptRef.current.slice(-10).join("\n")}`
+  : "";
+```
 
-### No database changes needed
-Language is a runtime parameter, not stored per-story.
-
+This way, even though it's technically a new session, the agent picks up where it left off.

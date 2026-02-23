@@ -608,32 +608,41 @@ const StoryMode = () => {
                   ? "Saving your episode…"
                   : "Your episode has been saved ✨"}
               </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => startNextEpisode(length)}
-                  disabled={savingEpisode}
-                  className="flex h-14 items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 text-sm text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  <SkipForward className="h-4 w-4" />
-                  Next Episode
-                </button>
-                <button
-                  onClick={goHome}
-                  disabled={savingEpisode}
-                  className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  {savingEpisode ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full"
-                    />
-                  ) : (
-                    <Home className="h-4 w-4" />
-                  )}
-                  {savingEpisode ? "Saving…" : "Back"}
-                </button>
+              {/* Duration picker for next episode */}
+              <div className="flex gap-2">
+                {[
+                  { value: "short", label: "Short", desc: "~3m" },
+                  { value: "medium", label: "Medium", desc: "~7m" },
+                  { value: "long", label: "Long", desc: "~15m" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => startNextEpisode(opt.value)}
+                    disabled={savingEpisode}
+                    className="flex flex-col items-center gap-0.5 rounded-lg border border-border/50 bg-card/50 px-4 py-2.5 text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    <SkipForward className="h-3 w-3 mb-0.5" />
+                    <span className="text-xs font-medium">{opt.label}</span>
+                    <span className="text-[10px] opacity-60">{opt.desc}</span>
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={goHome}
+                disabled={savingEpisode}
+                className="flex h-14 items-center gap-2 rounded-full border border-border/50 bg-card/50 px-6 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {savingEpisode ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full"
+                  />
+                ) : (
+                  <Home className="h-4 w-4" />
+                )}
+                {savingEpisode ? "Saving…" : "Back"}
+              </button>
             </motion.div>
           )}
 

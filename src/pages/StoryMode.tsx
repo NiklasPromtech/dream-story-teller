@@ -49,11 +49,20 @@ const StoryMode = () => {
   const wasSpeakingRef = useRef(false);
   const nextEpisodeRef = useRef(false);
   const conversationIdRef = useRef<string | null>(null);
+  const autoGoodnightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const reconnectCountRef = useRef(0);
   const connectStartTimeRef = useRef<number | null>(null);
   const [micMuted, setMicMuted] = useState(true);
   const [savingEpisode, setSavingEpisode] = useState(false);
+
+  const clearAutoGoodnight = useCallback((reason?: string) => {
+    if (autoGoodnightTimerRef.current) {
+      console.log(`[AUTO-GOODNIGHT] Timer cancelled (${reason || 'unknown'})`);
+      clearTimeout(autoGoodnightTimerRef.current);
+      autoGoodnightTimerRef.current = null;
+    }
+  }, []);
 
   // Fade-to-black entrance: brief black overlay then reveal
   useEffect(() => {
@@ -66,6 +75,7 @@ const StoryMode = () => {
     return () => {
       if (connectTimeRef.current) clearInterval(connectTimeRef.current);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (autoGoodnightTimerRef.current) clearTimeout(autoGoodnightTimerRef.current);
     };
   }, []);
 
@@ -293,11 +303,13 @@ const StoryMode = () => {
    }, [conversation]);
 
   const extendStoryVoice = useCallback((minutes: number) => {
+    clearAutoGoodnight('extend button clicked');
     conversation.sendUserMessage(`Please make the story ${minutes} minutes longer.`);
     toast({ title: `+${minutes} min`, description: `Story extended by ${minutes} minutes.` });
-  }, [conversation, toast]);
+  }, [conversation, toast, clearAutoGoodnight]);
 
   const sayGoodnight = useCallback(async () => {
+    clearAutoGoodnight('goodnight triggered');
     console.log(`[GOODNIGHT] Initiating goodnight | transcriptLines: ${transcriptRef.current.length} | storyId: ${currentStoryIdRef.current} | conversationId: ${conversationIdRef.current}`);
     toast({ title: "Goodnight 🌙", description: "Saving your story…" });
     isStoppedRef.current = true;
@@ -315,9 +327,10 @@ const StoryMode = () => {
     savePromise.finally(() => setSavingEpisode(false));
     await savePromise;
     navigate("/");
-  }, [conversation, toast, saveSummary, navigate]);
+  }, [conversation, toast, saveSummary, navigate, clearAutoGoodnight]);
 
   const startNextEpisode = useCallback(async (nextLength: string) => {
+    clearAutoGoodnight('next episode clicked');
     toast({ title: "Next episode ⏭️", description: "Saving this episode and starting the next…" });
     isStoppedRef.current = true;
     setIsStopped(true);
@@ -345,13 +358,14 @@ const StoryMode = () => {
       },
     });
     window.location.reload();
-  }, [conversation, toast, navigate, topic, age, saveSummary]);
+  }, [conversation, toast, navigate, topic, age, saveSummary, clearAutoGoodnight]);
 
   const sendTextMessage = useCallback(() => {
     if (!textInput.trim()) return;
+    clearAutoGoodnight('text message sent');
     conversation.sendUserMessage(textInput.trim());
     setTextInput("");
-  }, [conversation, textInput]);
+  }, [conversation, textInput, clearAutoGoodnight]);
 
   const toggleTextInput = useCallback(() => {
     setShowTextInput((prev) => {
@@ -497,6 +511,34 @@ const StoryMode = () => {
       }, 15000);
     }
   }, [conversation.isSpeaking, conversation.status, secondsSinceConnect, conversation]);
+
+  // Auto-goodnight: when the button panel is visible for 5 seconds, auto-trigger sayGoodnight
+  useEffect(() => {
+    const buttonsVisible =
+      !conversation.isSpeaking &&
+      isActive &&
+      !isStopped &&
+      !connectionFailed &&
+      secondsSinceConnect !== null &&
+      secondsSinceConnect > 10;
+
+    if (buttonsVisible) {
+      console.log('[AUTO-GOODNIGHT] Timer started (5s)');
+      autoGoodnightTimerRef.current = setTimeout(() => {
+        console.log('[AUTO-GOODNIGHT] Triggering auto-save');
+        sayGoodnight();
+      }, 5000);
+    } else {
+      clearAutoGoodnight('conditions no longer met');
+    }
+
+    return () => {
+      if (autoGoodnightTimerRef.current) {
+        clearTimeout(autoGoodnightTimerRef.current);
+        autoGoodnightTimerRef.current = null;
+      }
+    };
+  }, [conversation.isSpeaking, isActive, isStopped, connectionFailed, secondsSinceConnect, sayGoodnight, clearAutoGoodnight]);
 
 
   return (

@@ -50,6 +50,8 @@ const StoryMode = () => {
   const nextEpisodeRef = useRef(false);
   const conversationIdRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const reconnectCountRef = useRef(0);
+  const connectStartTimeRef = useRef<number | null>(null);
   const [micMuted, setMicMuted] = useState(true);
   const [savingEpisode, setSavingEpisode] = useState(false);
 
@@ -180,7 +182,10 @@ const StoryMode = () => {
   const conversation = useConversation({
     micMuted,
     onConnect: () => {
-      console.log("Connected to storyteller");
+      const isReconnect = reconnectCountRef.current > 0;
+      console.log(`[CONNECT] Connected to storyteller | timestamp: ${new Date().toISOString()} | isReconnect: ${isReconnect} | reconnectAttempt: ${reconnectCountRef.current} | transcriptLines: ${transcriptRef.current.length}`);
+      reconnectCountRef.current = 0; // Reset on successful connect
+      connectStartTimeRef.current = Date.now();
       setHasStarted(true);
       hasStartedRef.current = true;
       setConnectionFailed(false);
@@ -195,15 +200,32 @@ const StoryMode = () => {
       }, 1000);
       // Immediately prompt the AI to start narrating
       setTimeout(() => {
-        conversation.sendUserMessage("Please start telling the story now.");
+        console.log(`[CONNECT] Sending initial story prompt | isReconnect: ${isReconnect}`);
+        conversation.sendUserMessage(isReconnect ? "Continue the story from where you left off." : "Please start telling the story now.");
       }, 500);
     },
-    onDisconnect: () => {
-      console.log("Disconnected from storyteller, isStoppedRef:", isStoppedRef.current);
+    onDisconnect: (details: any) => {
+      const elapsedMs = connectStartTimeRef.current ? Date.now() - connectStartTimeRef.current : 0;
+      const elapsedSec = (elapsedMs / 1000).toFixed(1);
+      console.warn(`[DISCONNECT] timestamp: ${new Date().toISOString()} | elapsed: ${elapsedSec}s | isStopped: ${isStoppedRef.current} | hasStarted: ${hasStartedRef.current} | transcriptLines: ${transcriptRef.current.length} | conversationId: ${conversationIdRef.current}`);
+      console.warn(`[DISCONNECT] details:`, details);
       if (!isStoppedRef.current && hasStartedRef.current) {
-        console.log("Unexpected disconnect, auto-retrying in 2s...");
+        reconnectCountRef.current += 1;
+        const attempt = reconnectCountRef.current;
+        console.warn(`[RECONNECT] Attempt ${attempt}/3 | elapsed: ${elapsedSec}s | transcriptLines: ${transcriptRef.current.length}`);
+        if (attempt > 3) {
+          console.error("[RECONNECT] Max attempts (3) reached, giving up");
+          toast({
+            variant: "destructive",
+            title: "Connection Lost",
+            description: "Could not reconnect after 3 attempts. Please go back and try again.",
+          });
+          isStoppedRef.current = true;
+          setIsStopped(true);
+          return;
+        }
         toast({
-          title: "Reconnecting…",
+          title: `Reconnecting… (attempt ${attempt}/3)`,
           description: "The storyteller dropped briefly. Reconnecting now.",
         });
         setTimeout(() => {
@@ -214,8 +236,10 @@ const StoryMode = () => {
         }, 2000);
       }
     },
-    onError: (error) => {
-      console.error("Conversation error:", error);
+    onError: (error: any) => {
+      const elapsedMs = connectStartTimeRef.current ? Date.now() - connectStartTimeRef.current : 0;
+      console.error(`[ERROR] timestamp: ${new Date().toISOString()} | elapsed: ${(elapsedMs / 1000).toFixed(1)}s | isStopped: ${isStoppedRef.current} | status: ${conversation.status}`);
+      console.error(`[ERROR] Full error:`, error);
       setConnectionFailed(true);
       toast({
         variant: "destructive",
@@ -224,14 +248,24 @@ const StoryMode = () => {
       });
     },
     onMessage: (message: any) => {
-      // Capture conversation ID from initiation metadata
+      // Log every message type with key fields
       if (message.type === "conversation_initiation_metadata") {
         const convId = message.conversation_initiation_metadata_event?.conversation_id;
+        console.log(`[MSG] type: conversation_initiation_metadata | conversationId: ${convId}`);
         if (convId) {
-          console.log("Captured conversationId:", convId);
           conversationIdRef.current = convId;
           setConversationId(convId);
         }
+      } else if (message.type === "agent_response") {
+        const text = message.agent_response_event?.agent_response || "";
+        console.log(`[MSG] type: agent_response | length: ${text.length} | preview: "${text.slice(0, 80)}…"`);
+      } else if (message.type === "agent_response_correction") {
+        console.log(`[MSG] type: agent_response_correction`);
+      } else if (message.type === "user_transcript") {
+        const text = message.user_transcription_event?.user_transcript || "";
+        console.log(`[MSG] type: user_transcript | text: "${text.slice(0, 80)}"`);
+      } else {
+        console.log(`[MSG] type: ${message.type}`);
       }
       if (message.type === "agent_response") {
         const text = message.agent_response_event?.agent_response || "";
@@ -264,6 +298,7 @@ const StoryMode = () => {
   }, [conversation, toast]);
 
   const sayGoodnight = useCallback(async () => {
+    console.log(`[GOODNIGHT] Initiating goodnight | transcriptLines: ${transcriptRef.current.length} | storyId: ${currentStoryIdRef.current} | conversationId: ${conversationIdRef.current}`);
     toast({ title: "Goodnight 🌙", description: "Saving your story…" });
     isStoppedRef.current = true;
     setIsStopped(true);
@@ -331,6 +366,8 @@ const StoryMode = () => {
 
   const startConversation = useCallback(async () => {
     if (isConnecting) return;
+    const isReconnect = reconnectCountRef.current > 0;
+    console.log(`[START] Starting conversation | isReconnect: ${isReconnect} | attempt: ${reconnectCountRef.current} | transcriptLines: ${transcriptRef.current.length}`);
     setIsConnecting(true);
     setConnectionFailed(false);
     try {
@@ -342,20 +379,31 @@ const StoryMode = () => {
       if (error || !data?.signed_url) {
         throw new Error(error?.message || "No signed URL received");
       }
-      console.log("Connecting via WebSocket...");
+      console.log(`[START] Got signed URL (${data.signed_url.slice(0, 60)}…) | isReconnect: ${isReconnect}`);
+      
+      // Build prompt with reconnection context if needed
+      const reconnectContext = isReconnect && transcriptRef.current.length > 0
+        ? `\n\nRECONNECTION: The connection was interrupted. Here is the story so far — continue EXACTLY from where you left off, do NOT repeat anything:\n${transcriptRef.current.slice(-10).join("\n")}`
+        : "";
+      const finalPrompt = storyPrompt + reconnectContext;
+      if (isReconnect) {
+        console.log(`[START] Reconnect prompt appended with ${transcriptRef.current.slice(-10).length} transcript lines`);
+      }
+      
+      console.log(`[START] Connecting via WebSocket...`);
       await conversation.startSession({
         signedUrl: data.signed_url,
         overrides: {
           agent: {
             prompt: {
-              prompt: storyPrompt,
+              prompt: finalPrompt,
             },
             language: storyLanguage,
           },
         },
       });
     } catch (err: any) {
-      console.error("Failed to start:", err);
+      console.error("[START] Failed to start:", err);
       setConnectionFailed(true);
       const isPermissionError =
         err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError";
@@ -369,7 +417,7 @@ const StoryMode = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [conversation, topic, length, isConnecting, toast]);
+  }, [conversation, topic, length, isConnecting, toast, storyPrompt, storyLanguage, age]);
 
   const stopConversation = useCallback(async () => {
     isStoppedRef.current = true;
@@ -419,6 +467,7 @@ const StoryMode = () => {
       silenceTimerRef.current = null;
     }
     if (conversation.isSpeaking) {
+      console.log(`[SPEAKING] isSpeaking=true | elapsed: ${secondsSinceConnect}s`);
       wasSpeakingRef.current = true;
     } else if (
       wasSpeakingRef.current &&
@@ -427,10 +476,11 @@ const StoryMode = () => {
       secondsSinceConnect !== null &&
       secondsSinceConnect > 30
     ) {
+      console.log(`[SILENCE] Agent stopped speaking | elapsed: ${secondsSinceConnect}s | starting 15s silence timer`);
       // AI stopped speaking after having spoken — wait 15s of silence then auto-end
       silenceTimerRef.current = setTimeout(async () => {
         if (!isStoppedRef.current && !conversation.isSpeaking) {
-          console.log("Auto-ending session after prolonged silence (story finished)");
+          console.log(`[SILENCE] 15s silence timer fired — auto-ending session | elapsed: ${secondsSinceConnect}s`);
           isStoppedRef.current = true;
           setIsStopped(true);
           setSavingEpisode(true);

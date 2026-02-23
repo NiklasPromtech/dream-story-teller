@@ -1,79 +1,30 @@
 
-# Extreme Logging + Fix Reconnect Starting New Conversation
 
-## Problem 1: Reconnect starts a new conversation
-When the ElevenLabs WebSocket drops unexpectedly, `onDisconnect` calls `startConversation()`, which requests a **new signed URL** and creates an entirely new session. The previous `conversationId` is lost, the agent has no memory, and the story restarts from scratch.
+# Auto-Save After Goodnight Becomes Visible
 
-Unfortunately, ElevenLabs does not support reconnecting to an existing conversation -- once a WebSocket drops, that session is gone. So the best we can do is:
-- Pass the **same prompt with previous context** so the new session continues where the old one left off
-- Log extensively so we can diagnose *why* disconnects happen
+## What this solves
+When the AI narrator says "goodnight" and stops speaking, the control buttons appear (including the Goodnight button). If the user doesn't tap anything within a few seconds, the AI continues talking — but without continuity from the previous episode. This feels jarring. 
 
-## Problem 2: Insufficient logging
-We need detailed logging at every step to diagnose the 1m28s disconnect.
+This change adds a 5-second auto-trigger: once the Goodnight button is visible for 5 seconds, the app automatically saves the episode and returns the user to the home screen — exactly as if they had tapped the Goodnight button.
 
-## Changes (all in `src/pages/StoryMode.tsx`)
+## How it works
 
-### 1. Add extreme logging throughout
+1. **Track when the button panel becomes visible** — The buttons appear when `!conversation.isSpeaking` and the session has been active for >10 seconds. When these conditions become true, start a 5-second timer.
 
-Add `console.log` / `console.warn` at these points:
-- `onConnect`: log conversation status, timestamp, whether this is a reconnect
-- `onDisconnect`: log the disconnect details object, elapsed seconds, `isStoppedRef` value, `hasStartedRef` value
-- `onError`: log full error object
-- `onMessage`: log every message type and key fields (not full payload to avoid noise)
-- `startConversation`: log when starting, whether it's a reconnect attempt, the signed URL (truncated)
-- `sayGoodnight` / auto-silence: log each step
-- Silence timer: log when silence detection starts, when it fires
-- `isSpeaking` changes: log transitions
+2. **After 5 seconds, auto-trigger `sayGoodnight()`** — This saves the transcript, summarizes the episode, ends the session, and navigates home.
 
-### 2. Improve reconnect to carry context forward
+3. **Cancel the timer if the user interacts** — If the user clicks any button (extend time, next episode, goodnight, or sends a text message), cancel the auto-save timer so it doesn't fire unexpectedly.
 
-When auto-reconnecting after an unexpected disconnect:
-- Capture the current transcript so far (already in `transcriptRef.current`)
-- On the reconnect call to `startConversation`, build a prompt that includes a "RECONNECTION CONTEXT" section with the transcript so far, telling the agent to **continue from where it left off** without repeating
-- Track reconnect count to prevent infinite reconnect loops (max 3 attempts)
-- Log the reconnect attempt number
+4. **Cancel if speaking resumes** — If the AI starts speaking again before the 5 seconds are up, cancel the timer.
 
-### 3. Add reconnect attempt counter
+## Technical details (all in `src/pages/StoryMode.tsx`)
 
-- New ref: `reconnectCountRef = useRef(0)`
-- Reset to 0 on successful `onConnect`
-- Increment on each reconnect attempt in `onDisconnect`
-- Stop retrying after 3 attempts and show an error toast instead
+- Add a new ref: `autoGoodnightTimerRef = useRef<NodeJS.Timeout | null>(null)`
+- Add a helper to clear the timer: `clearAutoGoodnight()`
+- Add a `useEffect` that watches `conversation.isSpeaking`, `isActive`, `isStopped`, and `secondsSinceConnect`:
+  - When the button panel conditions are met (`!isSpeaking && isActive && !isStopped && secondsSinceConnect > 10`), start a 5-second timeout that calls `sayGoodnight()`
+  - When any condition becomes false, clear the timer
+  - Clean up on unmount
+- Call `clearAutoGoodnight()` inside the click handlers for: extend buttons, next episode buttons, text message send, and the goodnight button itself
+- Add logging: `[AUTO-GOODNIGHT] Timer started`, `[AUTO-GOODNIGHT] Timer cancelled (reason)`, `[AUTO-GOODNIGHT] Triggering auto-save`
 
-### Technical detail
-
-In `onDisconnect` (line 201-215), change from:
-```
-setTimeout(() => {
-  if (!isStoppedRef.current) {
-    savedRef.current = true;
-    startConversation();
-  }
-}, 2000);
-```
-to:
-```
-reconnectCountRef.current += 1;
-const attempt = reconnectCountRef.current;
-console.warn(`[RECONNECT] Attempt ${attempt}/3, elapsed: ${secondsSinceConnect}s, transcript lines: ${transcriptRef.current.length}`);
-if (attempt > 3) {
-  console.error("[RECONNECT] Max attempts reached, giving up");
-  // show error, stop
-  return;
-}
-setTimeout(() => {
-  if (!isStoppedRef.current) {
-    savedRef.current = true;
-    startConversation(); // will use updated storyPrompt with reconnection context
-  }
-}, 2000);
-```
-
-In `startConversation`, when `reconnectCountRef.current > 0`, append reconnection context to the prompt:
-```
-const reconnectContext = reconnectCountRef.current > 0 && transcriptRef.current.length > 0
-  ? `\n\nRECONNECTION: The connection was interrupted. Here is the story so far — continue EXACTLY from where you left off, do NOT repeat anything:\n${transcriptRef.current.slice(-10).join("\n")}`
-  : "";
-```
-
-This way, even though it's technically a new session, the agent picks up where it left off.
